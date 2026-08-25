@@ -25,45 +25,43 @@
     .status-sync { background-color: #d9e1f2 !important; color: #1f4e78 !important; }
     .info-panel { margin-top: 15px; font-size: 13px; color: #666; display: flex; justify-content: space-between; align-items: center; }
     .btn-sync { background: #1F4E78; color: white; border: none; padding: 10px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-    .btn-install { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-bottom: 15px; display: none; font-size: 15px; }
+    .btn-install { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; font-size: 15px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <button id="btnInstall" class="btn-install">📲 INSTALAR APP EN CELULAR</button>
+    <button id="btnInstall" class="btn-install" style="display:none;">📲 INSTALAR APP EN CELULAR</button>
     <h2>CONTROL DE MANGA - OFFLINE</h2>
     <label>CARAVANA (LECTURA BASTÓN):</label>
     <input type="text" id="caravana" placeholder="Esperando lectura..." autofocus autocomplete="off">
     
-    <div id="status">Cargando base local...</div>
+    <div id="status">Iniciando base de datos...</div>
     
     <div class="info-panel">
-      <span>Pendientes de subir: <strong id="pendientesCount">0</strong></span>
+      <span>Pendientes: <strong id="pendientesCount">0</strong></span>
       <button class="btn-sync" onclick="sincronizarDatos()">Sincronizar</button>
     </div>
   </div>
 
   <script>
-    // ⚠️ COLOCÁ ACÁ LA URL DE TU APLICACIÓN WEB DE GOOGLE APPS SCRIPT
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwHI5Ny2Aceyiu4bSXeWPx4mTLsqPbW_HmxPM-w09xaWwL5h56vvFmncjyPGQIOIAAB/exec";
 
     let db = null;
     let deferredPrompt = null;
 
-    // Capturar el evento para permitir instalación con un clic
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
       const btn = document.getElementById('btnInstall');
       btn.style.display = 'block';
-      btn.addEventListener('click', () => {
+      btn.onclick = () => {
         btn.style.display = 'none';
         deferredPrompt.prompt();
-      });
+      };
     });
 
     function initDB() {
-      const request = indexedDB.open("MangaTamboDB", 2);
+      const request = indexedDB.open("MangaTamboDB", 3);
 
       request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -79,8 +77,8 @@
         actualizarContadorPendientes();
       };
 
-      request.onerror = function(e) {
-        document.getElementById('status').textContent = 'Error al abrir base local';
+      request.onerror = function() {
+        document.getElementById('status').textContent = 'Error al abrir base de datos local';
       };
     }
 
@@ -89,6 +87,7 @@
     
     function mantenerFoco() { setTimeout(() => input.focus(), 50); }
     document.addEventListener('click', mantenerFoco);
+    
     window.addEventListener('load', () => {
       initDB();
       mantenerFoco();
@@ -102,7 +101,7 @@
 
         if (!id) return;
         if (!db) {
-          statusDiv.textContent = "Aguardá, inicializando base...";
+          statusDiv.textContent = 'Inicializando base local...';
           return;
         }
 
@@ -115,11 +114,7 @@
             statusDiv.className = 'status-existe';
             statusDiv.textContent = '⚠️ ¡CARAVANA EXISTENTE! (' + id + ')';
           } else {
-            store.add({
-              id: id,
-              fecha: new Date().toISOString(),
-              synced: 0
-            });
+            store.add({ id: id, fecha: new Date().toISOString(), synced: 0 });
             statusDiv.className = 'status-nuevo';
             statusDiv.textContent = '✓ NUEVA CARAVANA REGISTRADA: ' + id;
           }
@@ -160,7 +155,6 @@
         statusDiv.className = 'status-sync';
         statusDiv.textContent = 'Sincronizando ' + pendientes.length + ' registros...';
 
-        // Enviamos como text/plain para evitar bloqueos de CORS con Google Apps Script
         fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -177,13 +171,13 @@
 
           writeTx.oncomplete = function() {
             statusDiv.className = 'status-nuevo';
-            statusDiv.textContent = '✓ Sincronización exitosa (' + pendientes.length + ')';
+            statusDiv.textContent = '✓ Sincronizado (' + pendientes.length + ')';
             actualizarContadorPendientes();
           };
         })
-        .catch(err => {
+        .catch(() => {
           statusDiv.className = 'status-existe';
-          statusDiv.textContent = 'Error de red al sincronizar';
+          statusDiv.textContent = 'Error al conectar con Sheets';
         });
       };
     }
@@ -191,8 +185,10 @@
     window.addEventListener('online', sincronizarDatos);
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
+      navigator.serviceWorker.register('./sw.js');
     }
   </script>
 </body>
 </html>
+
+
