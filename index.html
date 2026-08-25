@@ -23,8 +23,12 @@
     .status-nuevo { background-color: #e2efda !important; color: #375623 !important; }
     .status-existe { background-color: #fce4d6 !important; color: #c00000 !important; }
     .status-sync { background-color: #d9e1f2 !important; color: #1f4e78 !important; }
+    
     .info-panel { margin-top: 15px; font-size: 13px; color: #666; display: flex; justify-content: space-between; align-items: center; }
+    .actions-panel { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+    
     .btn-sync { background: #1F4E78; color: white; border: none; padding: 10px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .btn-clear { background: #dc3545; color: white; border: none; padding: 10px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
     .btn-install { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; font-size: 15px; }
   </style>
 </head>
@@ -39,7 +43,10 @@
     
     <div class="info-panel">
       <span>Pendientes: <strong id="pendientesCount">0</strong></span>
-      <button class="btn-sync" onclick="sincronizarDatos()">Sincronizar</button>
+      <div class="actions-panel">
+        <button class="btn-sync" onclick="sincronizarDatos()">Sincronizar</button>
+        <button class="btn-clear" onclick="vaciarBaseLocal()">Vaciar Local</button>
+      </div>
     </div>
   </div>
 
@@ -61,8 +68,7 @@
     });
 
     function initDB() {
-      // Forzamos la versión v8 para que recree las tablas de forma limpia
-      const request = indexedDB.open("MangaTamboDB_v8", 1);
+      const request = indexedDB.open("MangaTamboDB_v9", 1);
 
       request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -187,6 +193,26 @@
           actualizarContadorPendientes();
         });
       };
+    }
+
+    function vaciarBaseLocal() {
+      if (!db) return;
+      if (confirm("¿Estás seguro de que querés vaciar la base de datos local del teléfono?")) {
+        const tx = db.transaction(["caravanas"], "readwrite");
+        const store = tx.objectStore("caravanas");
+        const clearReq = store.clear();
+
+        clearReq.onsuccess = function() {
+          statusDiv.className = 'status-sync';
+          statusDiv.textContent = 'Base local vaciada correctamente';
+          actualizarContadorPendientes();
+        };
+
+        clearReq.onerror = function() {
+          statusDiv.className = 'status-existe';
+          statusDiv.textContent = 'Error al vaciar la base local';
+        };
+      }
     }
 
     window.addEventListener('online', sincronizarDatos);
