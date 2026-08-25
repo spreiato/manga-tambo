@@ -61,7 +61,8 @@
     });
 
     function initDB() {
-      const request = indexedDB.open("MangaTamboDB_v7", 1);
+      // Forzamos la versión v8 para que recree las tablas de forma limpia
+      const request = indexedDB.open("MangaTamboDB_v8", 1);
 
       request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -164,23 +165,25 @@
           body: JSON.stringify({ lecturas: pendientes })
         })
         .then(() => {
-          const writeTx = db.transaction(["caravanas"], "readwrite");
-          const writeStore = writeTx.objectStore("caravanas");
+          setTimeout(() => {
+            const writeTx = db.transaction(["caravanas"], "readwrite");
+            const writeStore = writeTx.objectStore("caravanas");
 
-          pendientes.forEach(item => {
-            item.synced = 1;
-            writeStore.put(item);
-          });
+            pendientes.forEach(item => {
+              item.synced = 1;
+              writeStore.put(item);
+            });
 
-          writeTx.oncomplete = function() {
-            statusDiv.className = 'status-nuevo';
-            statusDiv.textContent = '✓ Sincronizado (' + pendientes.length + ')';
-            actualizarContadorPendientes();
-          };
+            writeTx.oncomplete = function() {
+              statusDiv.className = 'status-nuevo';
+              statusDiv.textContent = '✓ Sincronizado (' + pendientes.length + ')';
+              actualizarContadorPendientes();
+            };
+          }, 400);
         })
         .catch((err) => {
           statusDiv.className = 'status-existe';
-          statusDiv.textContent = 'Error de conexión con la plantilla';
+          statusDiv.textContent = 'Error de conexión con Sheets';
           actualizarContadorPendientes();
         });
       };
