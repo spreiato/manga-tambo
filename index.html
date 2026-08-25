@@ -25,10 +25,10 @@
     .status-sync { background-color: #d9e1f2 !important; color: #1f4e78 !important; }
     
     .info-panel { margin-top: 15px; font-size: 13px; color: #666; display: flex; justify-content: space-between; align-items: center; }
-    .actions-panel { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+    .actions-panel { display: flex; gap: 6px; }
     
-    .btn-sync { background: #1F4E78; color: white; border: none; padding: 10px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-    .btn-clear { background: #dc3545; color: white; border: none; padding: 10px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .btn-sync { background: #1F4E78; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    .btn-clear { background: #dc3545; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
     .btn-install { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; font-size: 15px; }
   </style>
 </head>
@@ -52,8 +52,7 @@
 
   <script>
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwals7ovrJHZ3LrugP-BymAQ7LKdm20su9IdlLjGFMullhavnELFv_Bwl2EOr-z76sF/exec";
-
-    let db = null;
+                  
     let deferredPrompt = null;
 
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -68,7 +67,8 @@
     });
 
     function initDB() {
-      const request = indexedDB.open("MangaTamboDB_v9", 1);
+      // Avanzamos a v10 para forzar la actualización de la base local
+      const request = indexedDB.open("MangaTamboDB_v10", 1);
 
       request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -197,7 +197,7 @@
 
     function vaciarBaseLocal() {
       if (!db) return;
-      if (confirm("¿Estás seguro de que querés vaciar la base de datos local del teléfono?")) {
+      if (confirm("¿Querés vaciar la base de datos local del celular?")) {
         const tx = db.transaction(["caravanas"], "readwrite");
         const store = tx.objectStore("caravanas");
         const clearReq = store.clear();
