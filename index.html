@@ -19,6 +19,7 @@
     #status {
       margin-top: 15px; padding: 16px; border-radius: 8px; font-size: 16px; font-weight: bold;
       min-height: 54px; display: flex; align-items: center; justify-content: center; background-color: #2f5597; color: white;
+      word-break: break-word;
     }
     .status-nuevo { background-color: #e2efda !important; color: #375623 !important; }
     .status-existe { background-color: #fce4d6 !important; color: #c00000 !important; }
@@ -68,8 +69,7 @@
     });
 
     function initDB() {
-      // Base v11 para forzar inicio limpio
-      const request = indexedDB.open("MangaTamboDB_v11", 1);
+      const request = indexedDB.open("MangaTamboDB_v12", 1);
 
       request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -148,9 +148,9 @@
       };
     }
 
-    function sincronizarDatos(manual) {
+    async function sincronizarDatos(manual) {
       if (!navigator.onLine) {
-        if (manual) alert("Sin conexión a Internet en este momento.");
+        if (manual) alert("Sin conexión a Internet.");
         return;
       }
       if (!db) return;
@@ -159,29 +159,32 @@
       const store = tx.objectStore("caravanas");
       const req = store.getAll();
 
-      req.onsuccess = function() {
+      req.onsuccess = async function() {
         const pendientes = req.result.filter(item => Number(item.synced) === 0);
         
         if (!pendientes || pendientes.length === 0) {
           if (manual) {
             statusDiv.className = 'status-sync';
-            statusDiv.textContent = 'No hay registros pendientes por enviar';
+            statusDiv.textContent = 'No hay registros pendientes';
           }
           actualizarContadorPendientes();
           return;
         }
 
         statusDiv.className = 'status-sync';
-        statusDiv.textContent = 'Enviando ' + pendientes.length + ' registros a Sheets...';
+        statusDiv.textContent = 'Enviando ' + pendientes.length + ' registros...';
 
-        fetch(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ lecturas: pendientes })
-        })
-        .then(() => {
-          setTimeout(() => {
+        try {
+          const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ lecturas: pendientes }),
+            redirect: 'follow'
+          });
+
+          const data = await response.json();
+
+          if (data && data.status === "success") {
             const writeTx = db.transaction(["caravanas"], "readwrite");
             const writeStore = writeTx.objectStore("caravanas");
 
@@ -195,13 +198,17 @@
               statusDiv.textContent = '✓ Sincronizado OK (' + pendientes.length + ')';
               actualizarContadorPendientes();
             };
-          }, 400);
-        })
-        .catch((err) => {
+          } else {
+            statusDiv.className = 'status-existe';
+            statusDiv.textContent = 'Error Servidor: ' + (data.message || 'Respuesta inválida');
+            actualizarContadorPendientes();
+          }
+
+        } catch (err) {
           statusDiv.className = 'status-existe';
-          statusDiv.textContent = 'Error al conectar con Google Sheets';
+          statusDiv.textContent = 'Error de Red: ' + err.message;
           actualizarContadorPendientes();
-        });
+        }
       };
     }
 

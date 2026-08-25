@@ -1,4 +1,4 @@
-const CACHE_NAME = 'manga-tambo-v11';
+const CACHE_NAME = 'manga-tambo-v12';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
