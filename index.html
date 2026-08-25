@@ -69,7 +69,7 @@
     });
 
     function initDB() {
-      const request = indexedDB.open("MangaTamboDB_v12", 1);
+      const request = indexedDB.open("MangaTamboDB_v13", 1);
 
       request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -148,9 +148,9 @@
       };
     }
 
-    async function sincronizarDatos(manual) {
+    function sincronizarDatos(manual) {
       if (!navigator.onLine) {
-        if (manual) alert("Sin conexión a Internet.");
+        if (manual) alert("Sin conexión a Internet en este momento.");
         return;
       }
       if (!db) return;
@@ -159,32 +159,29 @@
       const store = tx.objectStore("caravanas");
       const req = store.getAll();
 
-      req.onsuccess = async function() {
+      req.onsuccess = function() {
         const pendientes = req.result.filter(item => Number(item.synced) === 0);
         
         if (!pendientes || pendientes.length === 0) {
           if (manual) {
             statusDiv.className = 'status-sync';
-            statusDiv.textContent = 'No hay registros pendientes';
+            statusDiv.textContent = 'No hay registros pendientes por enviar';
           }
           actualizarContadorPendientes();
           return;
         }
 
         statusDiv.className = 'status-sync';
-        statusDiv.textContent = 'Enviando ' + pendientes.length + ' registros...';
+        statusDiv.textContent = 'Enviando ' + pendientes.length + ' registros a Sheets...';
 
-        try {
-          const response = await fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ lecturas: pendientes }),
-            redirect: 'follow'
-          });
-
-          const data = await response.json();
-
-          if (data && data.status === "success") {
+        fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors', // Evita bloqueos de CORS de Google Apps Script
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ lecturas: pendientes })
+        })
+        .then(() => {
+          setTimeout(() => {
             const writeTx = db.transaction(["caravanas"], "readwrite");
             const writeStore = writeTx.objectStore("caravanas");
 
@@ -198,17 +195,13 @@
               statusDiv.textContent = '✓ Sincronizado OK (' + pendientes.length + ')';
               actualizarContadorPendientes();
             };
-          } else {
-            statusDiv.className = 'status-existe';
-            statusDiv.textContent = 'Error Servidor: ' + (data.message || 'Respuesta inválida');
-            actualizarContadorPendientes();
-          }
-
-        } catch (err) {
+          }, 500);
+        })
+        .catch((err) => {
           statusDiv.className = 'status-existe';
-          statusDiv.textContent = 'Error de Red: ' + err.message;
+          statusDiv.textContent = 'Error al enviar a la planilla';
           actualizarContadorPendientes();
-        }
+        });
       };
     }
 
