@@ -1,15 +1,23 @@
 {
   "name": "Control Manga Tambo",
   "short_name": "MangaTambo",
-  "start_url": "./index.html",
+  "start_url": "/manga-tambo/",
+  "scope": "/manga-tambo/",
   "display": "standalone",
   "background_color": "#f4f6f9",
   "theme_color": "#1F4E78",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/2303/2303984.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2303/2303984.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

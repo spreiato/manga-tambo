@@ -24,16 +24,18 @@
     .status-existe { background-color: #fce4d6 !important; color: #c00000 !important; }
     .status-sync { background-color: #d9e1f2 !important; color: #1f4e78 !important; }
     .info-panel { margin-top: 15px; font-size: 13px; color: #666; display: flex; justify-content: space-between; align-items: center; }
-    .btn-sync { background: #1F4E78; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .btn-sync { background: #1F4E78; color: white; border: none; padding: 10px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .btn-install { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-bottom: 15px; display: none; font-size: 15px; }
   </style>
 </head>
 <body>
   <div class="card">
+    <button id="btnInstall" class="btn-install">📲 INSTALAR APP EN CELULAR</button>
     <h2>CONTROL DE MANGA - OFFLINE</h2>
     <label>CARAVANA (LECTURA BASTÓN):</label>
     <input type="text" id="caravana" placeholder="Esperando lectura..." autofocus autocomplete="off">
     
-    <div id="status">INICIALIZANDO...</div>
+    <div id="status">Cargando base local...</div>
     
     <div class="info-panel">
       <span>Pendientes de subir: <strong id="pendientesCount">0</strong></span>
@@ -42,41 +44,67 @@
   </div>
 
   <script>
-    // PEGA AQUÍ LA URL DE TU WEB APP DE GOOGLE APPS SCRIPT
+    // ⚠️ COLOCÁ ACÁ LA URL DE TU APLICACIÓN WEB DE GOOGLE APPS SCRIPT
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwHI5Ny2Aceyiu4bSXeWPx4mTLsqPbW_HmxPM-w09xaWwL5h56vvFmncjyPGQIOIAAB/exec";
 
-    let db;
-    const request = indexedDB.open("MangaTamboDB", 1);
+    let db = null;
+    let deferredPrompt = null;
 
-    request.onupgradeneeded = function(e) {
-      db = e.target.result;
-      if (!db.objectStoreNames.contains("caravanas")) {
-        const store = db.createObjectStore("caravanas", { keyPath: "id" });
-        store.createIndex("synced", "synced", { unique: false });
-      }
-    };
+    // Capturar el evento para permitir instalación con un clic
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('btnInstall');
+      btn.style.display = 'block';
+      btn.addEventListener('click', () => {
+        btn.style.display = 'none';
+        deferredPrompt.prompt();
+      });
+    });
 
-    request.onsuccess = function(e) {
-      db = e.target.result;
-      document.getElementById('status').textContent = 'LISTO PARA LEER (OFFLINE)';
-      actualizarContadorPendientes();
-    };
+    function initDB() {
+      const request = indexedDB.open("MangaTamboDB", 2);
+
+      request.onupgradeneeded = function(e) {
+        db = e.target.result;
+        if (!db.objectStoreNames.contains("caravanas")) {
+          const store = db.createObjectStore("caravanas", { keyPath: "id" });
+          store.createIndex("synced", "synced", { unique: false });
+        }
+      };
+
+      request.onsuccess = function(e) {
+        db = e.target.result;
+        document.getElementById('status').textContent = 'LISTO PARA LEER (OFFLINE)';
+        actualizarContadorPendientes();
+      };
+
+      request.onerror = function(e) {
+        document.getElementById('status').textContent = 'Error al abrir base local';
+      };
+    }
 
     const input = document.getElementById('caravana');
     const statusDiv = document.getElementById('status');
     
     function mantenerFoco() { setTimeout(() => input.focus(), 50); }
     document.addEventListener('click', mantenerFoco);
-    window.addEventListener('load', mantenerFoco);
+    window.addEventListener('load', () => {
+      initDB();
+      mantenerFoco();
+    });
 
-    input.addEventListener('keydown', async function(e) {
+    input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        const idRaw = input.value;
-        const id = idRaw.replace(/[^a-zA-Z0-9]/g, "").trim();
+        const id = input.value.replace(/[^a-zA-Z0-9]/g, "").trim();
         input.value = '';
 
         if (!id) return;
+        if (!db) {
+          statusDiv.textContent = "Aguardá, inicializando base...";
+          return;
+        }
 
         const tx = db.transaction(["caravanas"], "readwrite");
         const store = tx.objectStore("caravanas");
@@ -85,7 +113,7 @@
         getReq.onsuccess = function() {
           if (getReq.result) {
             statusDiv.className = 'status-existe';
-            statusDiv.textContent = `⚠️ ¡CARAVANA EXISTENTE! (${id})`;
+            statusDiv.textContent = '⚠️ ¡CARAVANA EXISTENTE! (' + id + ')';
           } else {
             store.add({
               id: id,
@@ -93,49 +121,52 @@
               synced: 0
             });
             statusDiv.className = 'status-nuevo';
-            statusDiv.textContent = `✓ NUEVA CARAVANA REGISTRADA: ${id}`;
-            actualizarContadorPendientes();
-            if (navigator.onLine) sincronizarDatos();
+            statusDiv.textContent = '✓ NUEVA CARAVANA REGISTRADA: ' + id;
           }
+        };
+
+        tx.oncomplete = function() {
+          actualizarContadorPendientes();
+          if (navigator.onLine) sincronizarDatos();
           mantenerFoco();
         };
       }
     });
 
     function actualizarContadorPendientes() {
+      if (!db) return;
       const tx = db.transaction(["caravanas"], "readonly");
       const store = tx.objectStore("caravanas");
       const index = store.getIndex("synced");
-      const req = index.count(IDBKeyRange.only(0));
+      const req = index.count(0);
 
       req.onsuccess = function() {
         document.getElementById('pendientesCount').textContent = req.result;
       };
     }
 
-    async function sincronizarDatos() {
-      if (!navigator.onLine) return;
+    function sincronizarDatos() {
+      if (!navigator.onLine || !db) return;
       
       const tx = db.transaction(["caravanas"], "readonly");
       const store = tx.objectStore("caravanas");
       const index = store.getIndex("synced");
-      const req = index.getAll(IDBKeyRange.only(0));
+      const req = index.getAll(0);
 
-      req.onsuccess = async function() {
+      req.onsuccess = function() {
         const pendientes = req.result;
         if (!pendientes || pendientes.length === 0) return;
 
         statusDiv.className = 'status-sync';
-        statusDiv.textContent = `Sincronizando ${pendientes.length} registros...`;
+        statusDiv.textContent = 'Sincronizando ' + pendientes.length + ' registros...';
 
-        try {
-          const res = await fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lecturas: pendientes })
-          });
-
+        // Enviamos como text/plain para evitar bloqueos de CORS con Google Apps Script
+        fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ lecturas: pendientes })
+        })
+        .then(() => {
           const writeTx = db.transaction(["caravanas"], "readwrite");
           const writeStore = writeTx.objectStore("caravanas");
           
@@ -146,13 +177,14 @@
 
           writeTx.oncomplete = function() {
             statusDiv.className = 'status-nuevo';
-            statusDiv.textContent = `✓ Sincronización finalizada (${pendientes.length})`;
+            statusDiv.textContent = '✓ Sincronización exitosa (' + pendientes.length + ')';
             actualizarContadorPendientes();
           };
-        } catch (err) {
+        })
+        .catch(err => {
           statusDiv.className = 'status-existe';
-          statusDiv.textContent = 'Error al conectar con la planilla';
-        }
+          statusDiv.textContent = 'Error de red al sincronizar';
+        });
       };
     }
 
