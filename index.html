@@ -44,7 +44,7 @@
     <div class="info-panel">
       <span>Pendientes: <strong id="pendientesCount">0</strong></span>
       <div class="actions-panel">
-        <button class="btn-sync" onclick="sincronizarDatos()">Sincronizar</button>
+        <button class="btn-sync" onclick="sincronizarDatos(true)">Sincronizar</button>
         <button class="btn-clear" onclick="vaciarBaseLocal()">Vaciar Local</button>
       </div>
     </div>
@@ -52,7 +52,8 @@
 
   <script>
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwals7ovrJHZ3LrugP-BymAQ7LKdm20su9IdlLjGFMullhavnELFv_Bwl2EOr-z76sF/exec";
-                  
+
+    let db = null;
     let deferredPrompt = null;
 
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -67,8 +68,8 @@
     });
 
     function initDB() {
-      // Avanzamos a v10 para forzar la actualización de la base local
-      const request = indexedDB.open("MangaTamboDB_v10", 1);
+      // Base v11 para forzar inicio limpio
+      const request = indexedDB.open("MangaTamboDB_v11", 1);
 
       request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -129,7 +130,7 @@
 
         tx.oncomplete = function() {
           actualizarContadorPendientes();
-          if (navigator.onLine) sincronizarDatos();
+          if (navigator.onLine) sincronizarDatos(false);
           mantenerFoco();
         };
       }
@@ -147,8 +148,12 @@
       };
     }
 
-    function sincronizarDatos() {
-      if (!navigator.onLine || !db) return;
+    function sincronizarDatos(manual) {
+      if (!navigator.onLine) {
+        if (manual) alert("Sin conexión a Internet en este momento.");
+        return;
+      }
+      if (!db) return;
 
       const tx = db.transaction(["caravanas"], "readonly");
       const store = tx.objectStore("caravanas");
@@ -156,13 +161,18 @@
 
       req.onsuccess = function() {
         const pendientes = req.result.filter(item => Number(item.synced) === 0);
+        
         if (!pendientes || pendientes.length === 0) {
+          if (manual) {
+            statusDiv.className = 'status-sync';
+            statusDiv.textContent = 'No hay registros pendientes por enviar';
+          }
           actualizarContadorPendientes();
           return;
         }
 
         statusDiv.className = 'status-sync';
-        statusDiv.textContent = 'Sincronizando ' + pendientes.length + ' registros...';
+        statusDiv.textContent = 'Enviando ' + pendientes.length + ' registros a Sheets...';
 
         fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
@@ -182,14 +192,14 @@
 
             writeTx.oncomplete = function() {
               statusDiv.className = 'status-nuevo';
-              statusDiv.textContent = '✓ Sincronizado (' + pendientes.length + ')';
+              statusDiv.textContent = '✓ Sincronizado OK (' + pendientes.length + ')';
               actualizarContadorPendientes();
             };
           }, 400);
         })
         .catch((err) => {
           statusDiv.className = 'status-existe';
-          statusDiv.textContent = 'Error de conexión con Sheets';
+          statusDiv.textContent = 'Error al conectar con Google Sheets';
           actualizarContadorPendientes();
         });
       };
@@ -215,7 +225,7 @@
       }
     }
 
-    window.addEventListener('online', sincronizarDatos);
+    window.addEventListener('online', () => sincronizarDatos(false));
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js');
