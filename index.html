@@ -61,7 +61,8 @@
     });
 
     function initDB() {
-      const request = indexedDB.open("MangaTamboDB", 3);
+      // Cambio de nombre de DB para forzar reconstrucción limpia de tablas e índices
+      const request = indexedDB.open("MangaTamboDB_v4", 1);
 
       request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -77,7 +78,8 @@
         actualizarContadorPendientes();
       };
 
-      request.onerror = function() {
+      request.onerror = function(e) {
+        console.error("Error IndexedDB:", e);
         document.getElementById('status').textContent = 'Error al abrir base de datos local';
       };
     }
@@ -113,6 +115,7 @@
           if (getReq.result) {
             statusDiv.className = 'status-existe';
             statusDiv.textContent = '⚠️ ¡CARAVANA EXISTENTE! (' + id + ')';
+            actualizarContadorPendientes();
           } else {
             store.add({ id: id, fecha: new Date().toISOString(), synced: 0 });
             statusDiv.className = 'status-nuevo';
@@ -130,14 +133,18 @@
 
     function actualizarContadorPendientes() {
       if (!db) return;
-      const tx = db.transaction(["caravanas"], "readonly");
-      const store = tx.objectStore("caravanas");
-      const index = store.getIndex("synced");
-      const req = index.count(0);
+      try {
+        const tx = db.transaction(["caravanas"], "readonly");
+        const store = tx.objectStore("caravanas");
+        const req = store.getAll();
 
-      req.onsuccess = function() {
-        document.getElementById('pendientesCount').textContent = req.result;
-      };
+        req.onsuccess = function() {
+          const sinSincronizar = req.result.filter(item => item.synced === 0);
+          document.getElementById('pendientesCount').textContent = sinSincronizar.length;
+        };
+      } catch (err) {
+        console.error("Error contando pendientes:", err);
+      }
     }
 
     function sincronizarDatos() {
@@ -145,11 +152,10 @@
       
       const tx = db.transaction(["caravanas"], "readonly");
       const store = tx.objectStore("caravanas");
-      const index = store.getIndex("synced");
-      const req = index.getAll(0);
+      const req = store.getAll();
 
       req.onsuccess = function() {
-        const pendientes = req.result;
+        const pendientes = req.result.filter(item => item.synced === 0);
         if (!pendientes || pendientes.length === 0) return;
 
         statusDiv.className = 'status-sync';
@@ -157,6 +163,7 @@
 
         fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
+          mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ lecturas: pendientes })
         })
@@ -175,7 +182,8 @@
             actualizarContadorPendientes();
           };
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("Error Sync:", err);
           statusDiv.className = 'status-existe';
           statusDiv.textContent = 'Error al conectar con Sheets';
         });
@@ -190,5 +198,3 @@
   </script>
 </body>
 </html>
-
-
