@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ventas-tambo-v1';
+const CACHE_NAME = 'ventas-tambo-v2';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
