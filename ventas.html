@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Registro Ventas Tambo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="manifest" href="manifest_ventas.json">
+  <meta name="theme-color" content="#C00000">
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
+    body { margin: 0; padding: 16px; background-color: #f4f6f9; text-align: center; }
+    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 480px; margin: 0 auto; }
+    h2 { color: #C00000; margin-top: 0; font-size: 20px; }
+    label { display: block; font-weight: bold; margin-bottom: 8px; color: #333; font-size: 14px; }
+    input[type="text"] {
+      width: 100%; padding: 16px; font-size: 22px; font-weight: bold; text-align: center;
+      border: 3px solid #C00000; border-radius: 8px; background-color: #fce4d6; color: #c00000; outline: none;
+    }
+    #status {
+      margin-top: 15px; padding: 16px; border-radius: 8px; font-size: 16px; font-weight: bold;
+      min-height: 54px; display: flex; align-items: center; justify-content: center; background-color: #c00000; color: white;
+      word-break: break-word;
+    }
+    .status-nuevo { background-color: #e2efda !important; color: #375623 !important; }
+    .status-existe { background-color: #fce4d6 !important; color: #c00000 !important; }
+    .status-sync { background-color: #d9e1f2 !important; color: #1f4e78 !important; }
+    
+    .info-panel { margin-top: 15px; font-size: 13px; color: #666; display: flex; justify-content: space-between; align-items: center; }
+    .actions-panel { display: flex; gap: 6px; }
+    
+    .btn-sync { background: #C00000; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    .btn-clear { background: #6c757d; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    .btn-install { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <button id="btnInstall" class="btn-install" style="display:none;">📲 INSTALAR APP DE VENTAS EN CELULAR</button>
+    <h2>REGISTRO DE VENTAS - OFFLINE</h2>
+    <label>CARAVANA A VENDER (BASTÓN):</label>
+    <input type="text" id="caravana" placeholder="Esperando lectura..." autofocus autocomplete="off">
+    
+    <div id="status">Iniciando base de datos...</div>
+    
+    <div class="info-panel">
+      <span>Pendientes Venta: <strong id="pendientesCount">0</strong></span>
+      <div class="actions-panel">
+        <button class="btn-sync" onclick="sincronizarDatos(true)">Sincronizar</button>
+        <button class="btn-clear" onclick="vaciarBaseLocal()">Vaciar Local</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyGSn9CWUCnEDm0bzwnlSGOWfUHTWpCciJztx65f3l5uMuZivAWJr7aDfROaqM1zuxG/exec";
+
+    let db = null;
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('btnInstall');
+      btn.style.display = 'block';
+      btn.onclick = () => {
+        btn.style.display = 'none';
+        deferredPrompt.prompt();
+      };
+    });
+
+    function initDB() {
+      const request = indexedDB.open("VentasTamboDB_v1", 1);
+
+      request.onupgradeneeded = function(e) {
+        db = e.target.result;
+        if (!db.objectStoreNames.contains("ventas")) {
+          db.createObjectStore("ventas", { keyPath: "id" });
+        }
+      };
+
+      request.onsuccess = function(e) {
+        db = e.target.result;
+        document.getElementById('status').textContent = 'LISTO PARA REGISTRAR VENTAS';
+        actualizarContadorPendientes();
+      };
+
+      request.onerror = function(e) {
+        document.getElementById('status').textContent = 'Error al abrir base local de ventas';
+      };
+    }
+
+    const input = document.getElementById('caravana');
+    const statusDiv = document.getElementById('status');
+    
+    function mantenerFoco() { setTimeout(() => input.focus(), 50); }
+    document.addEventListener('click', mantenerFoco);
+    
+    window.addEventListener('load', () => {
+      initDB();
+      mantenerFoco();
+    });
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const id = input.value.replace(/[^a-zA-Z0-9]/g, "").trim();
+        input.value = '';
+
+        if (!id) return;
+        if (!db) {
+          statusDiv.textContent = 'Cargando base de datos...';
+          return;
+        }
+
+        const tx = db.transaction(["ventas"], "readwrite");
+        const store = tx.objectStore("ventas");
+        const getReq = store.get(id);
+
+        getReq.onsuccess = function() {
+          if (getReq.result) {
+            statusDiv.className = 'status-existe';
+            statusDiv.textContent = '⚠️ ¡VENTA YA REGISTRADA! (' + id + ')';
+            actualizarContadorPendientes();
+          } else {
+            const fechaHoy = new Date().toLocaleDateString();
+            store.add({ id: id, fecha: fechaHoy, synced: 0 });
+            statusDiv.className = 'status-nuevo';
+            statusDiv.textContent = '✓ VENTA REGISTRADA: ' + id;
+          }
+        };
+
+        tx.oncomplete = function() {
+          actualizarContadorPendientes();
+          if (navigator.onLine) sincronizarDatos(false);
+          mantenerFoco();
+        };
+      }
+    });
+
+    function actualizarContadorPendientes() {
+      if (!db) return;
+      const tx = db.transaction(["ventas"], "readonly");
+      const store = tx.objectStore("ventas");
+      const req = store.getAll();
+
+      req.onsuccess = function() {
+        const sinSincronizar = req.result.filter(item => Number(item.synced) === 0);
+        document.getElementById('pendientesCount').textContent = sinSincronizar.length;
+      };
+    }
+
+    function sincronizarDatos(manual) {
+      if (!navigator.onLine) {
+        if (manual) alert("Sin conexión a Internet en este momento.");
+        return;
+      }
+      if (!db) return;
+
+      const tx = db.transaction(["ventas"], "readonly");
+      const store = tx.objectStore("ventas");
+      const req = store.getAll();
+
+      req.onsuccess = function() {
+        const pendientes = req.result.filter(item => Number(item.synced) === 0);
+        
+        if (!pendientes || pendientes.length === 0) {
+          if (manual) {
+            statusDiv.className = 'status-sync';
+            statusDiv.textContent = 'No hay ventas pendientes por enviar';
+          }
+          actualizarContadorPendientes();
+          return;
+        }
+
+        statusDiv.className = 'status-sync';
+        statusDiv.textContent = 'Actualizando ' + pendientes.length + ' ventas en Sheets...';
+
+        fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ lecturas: pendientes })
+        })
+        .then(() => {
+          setTimeout(() => {
+            const writeTx = db.transaction(["ventas"], "readwrite");
+            const writeStore = writeTx.objectStore("ventas");
+
+            pendientes.forEach(item => {
+              item.synced = 1;
+              writeStore.put(item);
+            });
+
+            writeTx.oncomplete = function() {
+              statusDiv.className = 'status-nuevo';
+              statusDiv.textContent = '✓ Ventas sincronizadas OK (' + pendientes.length + ')';
+              actualizarContadorPendientes();
+            };
+          }, 500);
+        })
+        .catch((err) => {
+          statusDiv.className = 'status-existe';
+          statusDiv.textContent = 'Error al actualizar ventas en la planilla';
+          actualizarContadorPendientes();
+        });
+      };
+    }
+
+    function vaciarBaseLocal() {
+      if (!db) return;
+      if (confirm("¿Querés vaciar el registro local de ventas del celular?")) {
+        const tx = db.transaction(["ventas"], "readwrite");
+        const store = tx.objectStore("ventas");
+        const clearReq = store.clear();
+
+        clearReq.onsuccess = function() {
+          statusDiv.className = 'status-sync';
+          statusDiv.textContent = 'Base local de ventas vaciada';
+          actualizarContadorPendientes();
+        };
+
+        clearReq.onerror = function() {
+          statusDiv.className = 'status-existe';
+          statusDiv.textContent = 'Error al vaciar base de ventas';
+        };
+      }
+    }
+
+    window.addEventListener('online', () => sincronizarDatos(false));
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw_ventas.js');
+    }
+  </script>
+</body>
+</html>
