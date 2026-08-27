@@ -1,6 +1,6 @@
 const CACHE_NAME = 'fc-vacias-v1';
 const urlsToCache = [
-  './fc_vacias.html',
+  './index_fc_vacias.html',
   './manifest_fc_vacias.json'
 ];
 
