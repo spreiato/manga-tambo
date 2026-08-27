@@ -1,0 +1,24 @@
+{
+  "name": "Registro Ventas Tambo",
+  "short_name": "VentasTambo",
+  "id": "/manga-tambo/ventas.html",
+  "start_url": "/manga-tambo/ventas.html",
+  "scope": "/manga-tambo/ventas.html",
+  "display": "standalone",
+  "background_color": "#f4f6f9",
+  "theme_color": "#C00000",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3144/3144456.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3144/3144456.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
