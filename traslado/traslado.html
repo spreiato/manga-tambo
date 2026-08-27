@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traslado Caravana</title>
+  <link rel="manifest" href="./manifest_traslado.json">
+  <meta name="theme-color" content="#2e7d32">
+  <style>
+    :root {
+      --primary: #2e7d32;
+      --primary-dark: #1b5e20;
+      --bg: #f4f6f8;
+      --card-bg: #ffffff;
+      --text: #333333;
+      --border: #cccccc;
+      --danger: #d32f2f;
+      --success: #388e3c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 15px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    header {
+      background-color: var(--primary);
+      color: white;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      margin-bottom: 5px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      background-color: rgba(255,255,255,0.2);
+    }
+
+    .card {
+      background: var(--card-bg);
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      margin-bottom: 15px;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--primary);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      margin-top: 5px;
+    }
+
+    .btn:active {
+      background-color: var(--primary-dark);
+    }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      background-color: #e8f5e9;
+      border-left: 4px solid var(--success);
+      border-radius: 6px;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+    }
+
+    .status-offline {
+      background-color: #ffebee;
+      border-left-color: var(--danger);
+    }
+
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    ul.item-list {
+      list-style: none;
+    }
+
+    ul.item-list li {
+      background: #fafafa;
+      border: 1px solid #eee;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .empty-msg {
+      text-align: center;
+      color: #777;
+      padding: 20px 0;
+      font-size: 0.9rem;
+    }
+
+    .pending-sync {
+      background-color: #fff3e0;
+      border-left: 4px solid #ff9800;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      font-size: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Traslado Caravana</h1>
+    <span class="badge" id="appStatus">PWA Instalada</span>
+  </header>
+
+  <!-- Estado de Red -->
+  <div class="status-bar" id="netStatus">
+    <span>Estado: <strong id="netText">En Línea</strong></span>
+    <span id="syncStatus">Sincronizado</span>
+  </div>
+
+  <!-- RENSPA Destino -->
+  <div class="card">
+    <div class="form-group">
+      <label for="renspaInput">RENSPA Destino:</label>
+      <input type="text" id="renspaInput" placeholder="Ej: 01.023.0.00456/00" autocomplete="off">
+    </div>
+  </div>
+
+  <!-- Lectura de Caravana -->
+  <div class="card">
+    <div class="form-group">
+      <label for="caravanaInput">Lectura de Caravana / ID:</label>
+      <input type="text" id="caravanaInput" placeholder="Escanear o ingresar caravana..." autocomplete="off">
+    </div>
+    <button class="btn" id="btnAdd">Registrar Caravana</button>
+  </div>
+
+  <!-- Pendientes de Sync Offline -->
+  <div class="pending-sync" id="pendingCard" style="display: none;">
+    <span>Registros pendientes de envío: <b id="pendingCount">0</b></span>
+    <button class="btn" id="btnSyncNow" style="width: auto; padding: 6px 12px; margin: 0; font-size: 0.8rem;">Sincronizar</button>
+  </div>
+
+  <!-- Lista de lecturas -->
+  <div class="card">
+    <div class="list-header">
+      <h3>Lecturas Registradas</h3>
+      <span id="totalLecturas">Total: 0</span>
+    </div>
+    <ul class="item-list" id="lecturasList">
+      <li class="empty-msg">No hay caravanas registradas aún.</li>
+    </ul>
+  </div>
+
+  <script>
+    // Registrar Service Worker Aislado
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw_traslado.js')
+          .then(reg => console.log('SW Traslado registrado correctamente'))
+          .catch(err => console.error('Error al registrar SW Traslado:', err));
+      });
+    }
+
+    // URL Webhook de n8n o ejecutable de Apps Script
+    const WEBHOOK_URL = 'URL_DE_TU_WEBHOOK_O_APPS_SCRIPT';
+
+    const renspaInput = document.getElementById('renspaInput');
+    const caravanaInput = document.getElementById('caravanaInput');
+    const btnAdd = document.getElementById('btnAdd');
+    const lecturasList = document.getElementById('lecturasList');
+    const totalLecturas = document.getElementById('totalLecturas');
+    const netStatus = document.getElementById('netStatus');
+    const netText = document.getElementById('netText');
+    const pendingCard = document.getElementById('pendingCard');
+    const pendingCount = document.getElementById('pendingCount');
+    const btnSyncNow = document.getElementById('btnSyncNow');
+
+    let lecturas = JSON.parse(localStorage.getItem('traslado_lecturas')) || [];
+    let colaOffline = JSON.parse(localStorage.getItem('traslado_queue')) || [];
+
+    renspaInput.value = localStorage.getItem('traslado_renspa') || '';
+
+    renspaInput.addEventListener('input', () => {
+      localStorage.setItem('traslado_renspa', renspaInput.value.trim());
+    });
+
+    function updateOnlineStatus() {
+      if (navigator.onLine) {
+        netStatus.classList.remove('status-offline');
+        netText.innerText = 'En Línea';
+        sincronizarCola();
+      } else {
+        netStatus.classList.add('status-offline');
+        netText.innerText = 'Sin Señal (Modo Offline)';
+      }
+      updateQueueUI();
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    function renderLecturas() {
+      if (lecturas.length === 0) {
+        lecturasList.innerHTML = '<li class="empty-msg">No hay caravanas registradas aún.</li>';
+        totalLecturas.innerText = 'Total: 0';
+        return;
+      }
+
+      lecturasList.innerHTML = '';
+      lecturas.forEach((item) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <div>
+            <strong>${item.caravana}</strong><br>
+            <small style="color: #666;">RENSPA: ${item.renspa} | ${item.hora}</small>
+          </div>
+          <span style="font-size:0.8rem; color: ${item.enviado ? 'green' : '#f57c00'};">
+            ${item.enviado ? '✓ Enviado' : '⏳ Pendiente'}
+          </span>
+        `;
+        lecturasList.appendChild(li);
+      });
+      totalLecturas.innerText = `Total: ${lecturas.length}`;
+    }
+
+    function updateQueueUI() {
+      if (colaOffline.length > 0) {
+        pendingCard.style.display = 'flex';
+        pendingCount.innerText = colaOffline.length;
+      } else {
+        pendingCard.style.display = 'none';
+      }
+    }
+
+    async function enviarAWebhook(registro) {
+      try {
+        const response = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(registro)
+        });
+        return response.ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function registrarCaravana() {
+      const renspa = renspaInput.value.trim();
+      const caravana = caravanaInput.value.trim();
+
+      if (!renspa) {
+        alert('Por favor ingrese el RENSPA Destino antes de continuar.');
+        renspaInput.focus();
+        return;
+      }
+
+      if (!caravana) {
+        alert('Por favor ingrese o escanee el número de Caravana.');
+        caravanaInput.focus();
+        return;
+      }
+
+      const nuevoRegistro = {
+        id: Date.now(),
+        renspa: renspa,
+        caravana: caravana,
+        fecha: new Date().toLocaleDateString('es-AR'),
+        hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+        enviado: false
+      };
+
+      if (navigator.onLine) {
+        const enviadoOk = await enviarAWebhook(nuevoRegistro);
+        if (enviadoOk) {
+          nuevoRegistro.enviado = true;
+        } else {
+          colaOffline.push(nuevoRegistro);
+        }
+      } else {
+        colaOffline.push(nuevoRegistro);
+      }
+
+      lecturas.unshift(nuevoRegistro);
+      
+      localStorage.setItem('traslado_lecturas', JSON.stringify(lecturas));
+      localStorage.setItem('traslado_queue', JSON.stringify(colaOffline));
+
+      caravanaInput.value = '';
+      caravanaInput.focus();
+
+      renderLecturas();
+      updateQueueUI();
+    }
+
+    async function sincronizarCola() {
+      if (colaOffline.length === 0 || !navigator.onLine) return;
+
+      const colaCopia = [...colaOffline];
+      for (const item of colaCopia) {
+        const exito = await enviarAWebhook(item);
+        if (exito) {
+          const idx = lecturas.findIndex(l => l.id === item.id);
+          if (idx !== -1) lecturas[idx].enviado = true;
+          colaOffline = colaOffline.filter(q => q.id !== item.id);
+        }
+      }
+
+      localStorage.setItem('traslado_lecturas', JSON.stringify(lecturas));
+      localStorage.setItem('traslado_queue', JSON.stringify(colaOffline));
+      
+      renderLecturas();
+      updateQueueUI();
+    }
+
+    btnAdd.addEventListener('click', registrarCaravana);
+    caravanaInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') registrarCaravana();
+    });
+    btnSyncNow.addEventListener('click', sincronizarCola);
+
+    updateOnlineStatus();
+    renderLecturas();
+  </script>
+</body>
+</html>
