@@ -1,9 +1,9 @@
 {
   "name": "Control F.C. Vacías",
-  "short_name": "F.C. Vacías",
-  "start_url": "./fc_vacias.html",
+  "short_name": "FC Vacías",
+  "start_url": "./index_fc_vacias.html",
   "display": "standalone",
-  "background_color": "#f4f6f8",
+  "background_color": "#f4f6f9",
   "theme_color": "#7b1fa2",
   "icons": [
     {
