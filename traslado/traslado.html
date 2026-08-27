@@ -224,8 +224,8 @@
       });
     }
 
-    // URL Webhook de n8n o ejecutable de Apps Script
-    const WEBHOOK_URL = 'URL_DE_TU_WEBHOOK_O_APPS_SCRIPT';
+    // URL Webhook de Apps Script configurada
+    const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwCibc94ikX2i26L9FMwM6d9hugbr07T9VhTJAEcmWSbdhP-czOG5O06BtcHZ2jdsxg/exec';
 
     const renspaInput = document.getElementById('renspaInput');
     const caravanaInput = document.getElementById('caravanaInput');
@@ -299,7 +299,7 @@
       try {
         const response = await fetch(WEBHOOK_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(registro)
         });
         return response.ok;
