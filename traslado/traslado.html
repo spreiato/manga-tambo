@@ -16,6 +16,7 @@
       --border: #cccccc;
       --danger: #d32f2f;
       --success: #388e3c;
+      --warning: #f57c00;
     }
 
     * {
@@ -45,7 +46,7 @@
 
     header h1 {
       font-size: 1.4rem;
-      margin-bottom: 5px;
+      margin-bottom: 8px;
     }
 
     .badge {
@@ -55,6 +56,20 @@
       font-size: 0.8rem;
       font-weight: bold;
       background-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-install {
+      display: none;
+      background-color: #ffffff;
+      color: var(--primary);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-top: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
     .card {
@@ -90,6 +105,12 @@
       border-color: var(--primary);
     }
 
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
     .btn {
       width: 100%;
       padding: 12px;
@@ -101,11 +122,18 @@
       font-weight: bold;
       cursor: pointer;
       transition: background-color 0.2s;
-      margin-top: 5px;
     }
 
     .btn:active {
       background-color: var(--primary-dark);
+    }
+
+    .btn-secondary {
+      background-color: #666666;
+    }
+
+    .btn-danger {
+      background-color: var(--danger);
     }
 
     .status-bar {
@@ -123,6 +151,18 @@
     .status-offline {
       background-color: #ffebee;
       border-left-color: var(--danger);
+    }
+
+    .sync-panel {
+      background-color: #fff3e0;
+      border-left: 4px solid var(--warning);
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .list-header {
@@ -153,31 +193,28 @@
       padding: 20px 0;
       font-size: 0.9rem;
     }
-
-    .pending-sync {
-      background-color: #fff3e0;
-      border-left: 4px solid #ff9800;
-      padding: 10px;
-      border-radius: 6px;
-      margin-bottom: 15px;
-      font-size: 0.85rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
   </style>
 </head>
 <body>
 
   <header>
     <h1>Traslado Caravana</h1>
-    <span class="badge" id="appStatus">PWA Instalada</span>
+    <span class="badge" id="appStatus">PWA Web</span><br>
+    <button class="btn-install" id="btnInstall">📲 Instalar Aplicación</button>
   </header>
 
   <!-- Estado de Red -->
   <div class="status-bar" id="netStatus">
     <span>Estado: <strong id="netText">En Línea</strong></span>
-    <span id="syncStatus">Sincronizado</span>
+    <span id="syncText">Sincronizado</span>
+  </div>
+
+  <!-- Panel de Sincronización Manual Offline -->
+  <div class="sync-panel" id="syncPanel">
+    <div>
+      <strong>Pendientes de envío:</strong> <span id="pendingCount">0</span>
+    </div>
+    <button class="btn btn-secondary" id="btnSyncNow" style="width: auto; padding: 6px 14px; font-size: 0.85rem;">Sincronizar</button>
   </div>
 
   <!-- RENSPA Destino -->
@@ -197,47 +234,77 @@
     <button class="btn" id="btnAdd">Registrar Caravana</button>
   </div>
 
-  <!-- Pendientes de Sync Offline -->
-  <div class="pending-sync" id="pendingCard" style="display: none;">
-    <span>Registros pendientes de envío: <b id="pendingCount">0</b></span>
-    <button class="btn" id="btnSyncNow" style="width: auto; padding: 6px 12px; margin: 0; font-size: 0.8rem;">Sincronizar</button>
-  </div>
-
-  <!-- Lista de lecturas -->
+  <!-- Lista de lecturas y Acciones -->
   <div class="card">
     <div class="list-header">
       <h3>Lecturas Registradas</h3>
       <span id="totalLecturas">Total: 0</span>
     </div>
+
     <ul class="item-list" id="lecturasList">
       <li class="empty-msg">No hay caravanas registradas aún.</li>
     </ul>
+
+    <!-- Botón para Vaciar Base Local -->
+    <div class="btn-group" style="margin-top: 15px;">
+      <button class="btn btn-danger" id="btnClearLocal">Vaciar Base Local</button>
+    </div>
   </div>
 
   <script>
-    // Registrar Service Worker Aislado
+    // Registrar Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw_traslado.js')
-          .then(reg => console.log('SW Traslado registrado correctamente'))
-          .catch(err => console.error('Error al registrar SW Traslado:', err));
+          .then(reg => console.log('SW Traslado OK'))
+          .catch(err => console.error('Error SW:', err));
       });
     }
 
-    // URL Webhook de Apps Script configurada
+    // Lógica del Botón de Instalación PWA
+    let deferredPrompt;
+    const btnInstall = document.getElementById('btnInstall');
+    const appStatus = document.getElementById('appStatus');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      btnInstall.style.display = 'inline-block';
+    });
+
+    btnInstall.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        btnInstall.style.display = 'none';
+        appStatus.innerText = 'PWA Instalada';
+      }
+      deferredPrompt = null;
+    });
+
+    window.addEventListener('appinstalled', () => {
+      btnInstall.style.display = 'none';
+      appStatus.innerText = 'PWA Instalada';
+    });
+
+    // URL Webhook de Google Apps Script
     const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwCibc94ikX2i26L9FMwM6d9hugbr07T9VhTJAEcmWSbdhP-czOG5O06BtcHZ2jdsxg/exec';
 
+    // Elementos DOM
     const renspaInput = document.getElementById('renspaInput');
     const caravanaInput = document.getElementById('caravanaInput');
     const btnAdd = document.getElementById('btnAdd');
+    const btnClearLocal = document.getElementById('btnClearLocal');
+    const btnSyncNow = document.getElementById('btnSyncNow');
     const lecturasList = document.getElementById('lecturasList');
     const totalLecturas = document.getElementById('totalLecturas');
     const netStatus = document.getElementById('netStatus');
     const netText = document.getElementById('netText');
-    const pendingCard = document.getElementById('pendingCard');
+    const syncText = document.getElementById('syncText');
     const pendingCount = document.getElementById('pendingCount');
-    const btnSyncNow = document.getElementById('btnSyncNow');
 
+    // Estado Local
     let lecturas = JSON.parse(localStorage.getItem('traslado_lecturas')) || [];
     let colaOffline = JSON.parse(localStorage.getItem('traslado_queue')) || [];
 
@@ -247,6 +314,7 @@
       localStorage.setItem('traslado_renspa', renspaInput.value.trim());
     });
 
+    // Control de Red y Sincronización
     function updateOnlineStatus() {
       if (navigator.onLine) {
         netStatus.classList.remove('status-offline');
@@ -256,11 +324,22 @@
         netStatus.classList.add('status-offline');
         netText.innerText = 'Sin Señal (Modo Offline)';
       }
-      updateQueueUI();
+      updateSyncUI();
     }
 
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
+
+    function updateSyncUI() {
+      pendingCount.innerText = colaOffline.length;
+      if (colaOffline.length > 0) {
+        syncText.innerText = 'Pendientes de envío';
+        syncText.style.color = 'var(--warning)';
+      } else {
+        syncText.innerText = 'Sincronizado';
+        syncText.style.color = 'var(--success)';
+      }
+    }
 
     function renderLecturas() {
       if (lecturas.length === 0) {
@@ -277,7 +356,7 @@
             <strong>${item.caravana}</strong><br>
             <small style="color: #666;">RENSPA: ${item.renspa} | ${item.hora}</small>
           </div>
-          <span style="font-size:0.8rem; color: ${item.enviado ? 'green' : '#f57c00'};">
+          <span style="font-size:0.8rem; font-weight: bold; color: ${item.enviado ? 'green' : 'var(--warning)'};">
             ${item.enviado ? '✓ Enviado' : '⏳ Pendiente'}
           </span>
         `;
@@ -286,24 +365,27 @@
       totalLecturas.innerText = `Total: ${lecturas.length}`;
     }
 
-    function updateQueueUI() {
-      if (colaOffline.length > 0) {
-        pendingCard.style.display = 'flex';
-        pendingCount.innerText = colaOffline.length;
-      } else {
-        pendingCard.style.display = 'none';
-      }
-    }
-
+    // Envío a Apps Script con fallback no-cors y URLSearchParams
     async function enviarAWebhook(registro) {
       try {
-        const response = await fetch(WEBHOOK_URL, {
+        const bodyData = new URLSearchParams();
+        bodyData.append('renspa', registro.renspa);
+        bodyData.append('caravana', registro.caravana);
+        bodyData.append('fecha', registro.fecha);
+        bodyData.append('hora', registro.hora);
+
+        await fetch(WEBHOOK_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(registro)
+          mode: 'no-cors',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: bodyData.toString()
         });
-        return response.ok;
+
+        return true;
       } catch (e) {
+        console.error("Error al enviar:", e);
         return false;
       }
     }
@@ -345,7 +427,7 @@
       }
 
       lecturas.unshift(nuevoRegistro);
-      
+
       localStorage.setItem('traslado_lecturas', JSON.stringify(lecturas));
       localStorage.setItem('traslado_queue', JSON.stringify(colaOffline));
 
@@ -353,7 +435,7 @@
       caravanaInput.focus();
 
       renderLecturas();
-      updateQueueUI();
+      updateSyncUI();
     }
 
     async function sincronizarCola() {
@@ -371,17 +453,31 @@
 
       localStorage.setItem('traslado_lecturas', JSON.stringify(lecturas));
       localStorage.setItem('traslado_queue', JSON.stringify(colaOffline));
-      
+
       renderLecturas();
-      updateQueueUI();
+      updateSyncUI();
     }
 
+    function vaciarBaseLocal() {
+      if (confirm('¿Está seguro de que desea vaciar todas las lecturas guardadas localmente?')) {
+        localStorage.removeItem('traslado_lecturas');
+        localStorage.removeItem('traslado_queue');
+        lecturas = [];
+        colaOffline = [];
+        renderLecturas();
+        updateSyncUI();
+      }
+    }
+
+    // Event Listeners
     btnAdd.addEventListener('click', registrarCaravana);
     caravanaInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') registrarCaravana();
     });
     btnSyncNow.addEventListener('click', sincronizarCola);
+    btnClearLocal.addEventListener('click', vaciarBaseLocal);
 
+    // Inicialización
     updateOnlineStatus();
     renderLecturas();
   </script>
