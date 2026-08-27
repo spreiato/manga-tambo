@@ -1,8 +1,9 @@
 {
   "name": "Registro Ventas Tambo",
   "short_name": "VentasTambo",
-  "start_url": "./ventas.html",
-  "scope": "./",
+  "id": "/manga-tambo/ventas.html",
+  "start_url": "/manga-tambo/ventas.html",
+  "scope": "/manga-tambo/ventas.html",
   "display": "standalone",
   "background_color": "#f4f6f9",
   "theme_color": "#C00000",
