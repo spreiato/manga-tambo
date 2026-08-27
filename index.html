@@ -9,7 +9,7 @@
   <style>
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
     body { margin: 0; padding: 16px; background-color: #f4f6f9; text-align: center; }
-    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 480px; margin: 0 auto; }
+    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 480px; margin: 0 auto 15px auto; }
     h2 { color: #1F4E78; margin-top: 0; font-size: 20px; }
     label { display: block; font-weight: bold; margin-bottom: 8px; color: #333; font-size: 14px; }
     input[type="text"] {
@@ -31,6 +31,13 @@
     .btn-sync { background: #1F4E78; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
     .btn-clear { background: #dc3545; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
     .btn-install { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; font-size: 15px; }
+
+    /* Estilos para la lista de lecturas */
+    .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
+    .list-header h3 { font-size: 1rem; color: #1F4E78; margin: 0; }
+    ul.item-list { list-style: none; padding: 0; margin: 0; text-align: left; max-height: 300px; overflow-y: auto; }
+    ul.item-list li { background: #fafafa; border: 1px solid #eee; padding: 10px; border-radius: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .empty-msg { text-align: center; color: #777; padding: 15px 0; font-size: 0.9rem; }
   </style>
 </head>
 <body>
@@ -49,6 +56,17 @@
         <button class="btn-clear" onclick="vaciarBaseLocal()">Vaciar Local</button>
       </div>
     </div>
+  </div>
+
+  <!-- Panel de Lecturas Registradas -->
+  <div class="card">
+    <div class="list-header">
+      <h3>Lecturas Registradas</h3>
+      <span id="totalLecturas" style="font-size: 0.85rem; font-weight: bold; color: #555;">Total: 0</span>
+    </div>
+    <ul class="item-list" id="lecturasList">
+      <li class="empty-msg">No hay caravanas registradas aún.</li>
+    </ul>
   </div>
 
   <script>
@@ -82,6 +100,7 @@
         db = e.target.result;
         document.getElementById('status').textContent = 'LISTO PARA LEER (OFFLINE)';
         actualizarContadorPendientes();
+        renderLecturas();
       };
 
       request.onerror = function(e) {
@@ -130,6 +149,7 @@
 
         tx.oncomplete = function() {
           actualizarContadorPendientes();
+          renderLecturas();
           if (navigator.onLine) sincronizarDatos(false);
           mantenerFoco();
         };
@@ -145,6 +165,42 @@
       req.onsuccess = function() {
         const sinSincronizar = req.result.filter(item => Number(item.synced) === 0);
         document.getElementById('pendientesCount').textContent = sinSincronizar.length;
+      };
+    }
+
+    function renderLecturas() {
+      if (!db) return;
+      const tx = db.transaction(["caravanas"], "readonly");
+      const store = tx.objectStore("caravanas");
+      const req = store.getAll();
+
+      req.onsuccess = function() {
+        const lecturasList = document.getElementById('lecturasList');
+        const totalLecturas = document.getElementById('totalLecturas');
+        const items = req.result.reverse(); // Muestra las últimas leídas primero
+
+        if (!items || items.length === 0) {
+          lecturasList.innerHTML = '<li class="empty-msg">No hay caravanas registradas aún.</li>';
+          totalLecturas.textContent = 'Total: 0';
+          return;
+        }
+
+        lecturasList.innerHTML = '';
+        items.forEach((item) => {
+          const li = document.createElement('li');
+          const esEnviado = Number(item.synced) === 1;
+          li.innerHTML = `
+            <div>
+              <strong>${item.id}</strong><br>
+              <small style="color: #666;">${item.fecha}</small>
+            </div>
+            <span style="font-size:0.8rem; font-weight: bold; color: ${esEnviado ? '#28a745' : '#f57c00'};">
+              ${esEnviado ? '✓ Enviado' : '⏳ Pendiente'}
+            </span>
+          `;
+          lecturasList.appendChild(li);
+        });
+        totalLecturas.textContent = 'Total: ' + items.length;
       };
     }
 
@@ -176,7 +232,7 @@
 
         fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
-          mode: 'no-cors', // Evita bloqueos de CORS de Google Apps Script
+          mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ lecturas: pendientes })
         })
@@ -194,6 +250,7 @@
               statusDiv.className = 'status-nuevo';
               statusDiv.textContent = '✓ Sincronizado OK (' + pendientes.length + ')';
               actualizarContadorPendientes();
+              renderLecturas();
             };
           }, 500);
         })
@@ -216,6 +273,7 @@
           statusDiv.className = 'status-sync';
           statusDiv.textContent = 'Base local vaciada correctamente';
           actualizarContadorPendientes();
+          renderLecturas();
         };
 
         clearReq.onerror = function() {
