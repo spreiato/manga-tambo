@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Lectura Inseminación</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="manifest" href="manifest_inseminacion.json">
+  <meta name="theme-color" content="#1565c0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Inseminación">
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
+    body { margin: 0; padding: 16px; background-color: #f4f6f9; text-align: center; }
+    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 480px; margin: 0 auto 15px auto; }
+    h2 { color: #1565c0; margin-top: 0; font-size: 20px; }
+    label { display: block; font-weight: bold; margin-bottom: 8px; color: #333; font-size: 14px; }
+    input[type="text"] {
+      width: 100%; padding: 16px; font-size: 22px; font-weight: bold; text-align: center;
+      border: 3px solid #1565c0; border-radius: 8px; background-color: #e3f2fd; color: #1565c0; outline: none;
+      -webkit-user-select: text; user-select: text;
+    }
+    #status {
+      margin-top: 15px; padding: 16px; border-radius: 8px; font-size: 16px; font-weight: bold;
+      min-height: 54px; display: flex; align-items: center; justify-content: center; background-color: #1565c0; color: white;
+      word-break: break-word;
+    }
+    .status-nuevo { background-color: #e2efda !important; color: #375623 !important; }
+    .status-existe { background-color: #fce4d6 !important; color: #c00000 !important; }
+    .status-sync { background-color: #d9e1f2 !important; color: #1f4e78 !important; }
+    
+    .info-panel { margin-top: 15px; font-size: 13px; color: #666; display: flex; justify-content: space-between; align-items: center; }
+    .actions-panel { display: flex; gap: 6px; }
+    
+    .btn-sync { background: #1565c0; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    .btn-clear { background: #6c757d; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    .btn-install { background: #0d47a1; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; font-size: 15px; }
+
+    .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
+    .list-header h3 { font-size: 1rem; color: #1565c0; margin: 0; }
+    ul.item-list { list-style: none; padding: 0; margin: 0; text-align: left; max-height: 300px; overflow-y: auto; }
+    ul.item-list li { background: #fafafa; border: 1px solid #eee; padding: 10px; border-radius: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .empty-msg { text-align: center; color: #777; padding: 15px 0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <button id="btnInstall" class="btn-install" style="display:none;">📲 INSTALAR APP INSEMINACIÓN</button>
+    <h2>LECTURA INSEMINACIÓN - OFFLINE</h2>
+    <label>CARAVANA (INSEMINACIÓN - COL. M):</label>
+    <input type="text" id="caravana" placeholder="Esperando lectura..." autofocus autocomplete="off">
+    
+    <div id="status">Iniciando base de datos...</div>
+    
+    <div class="info-panel">
+      <span>Pendientes Inseminación: <strong id="pendientesCount">0</strong></span>
+      <div class="actions-panel">
+        <button class="btn-sync" type="button" onclick="sincronizarDatos(true)">Sincronizar</button>
+        <button class="btn-clear" type="button" onclick="vaciarBaseLocal()">Vaciar Local</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="list-header">
+      <h3>Inseminaciones Registradas</h3>
+      <span id="totalLecturas" style="font-size: 0.85rem; font-weight: bold; color: #555;">Total: 0</span>
+    </div>
+    <ul class="item-list" id="lecturasList">
+      <li class="empty-msg">No hay lecturas registradas aún.</li>
+    </ul>
+  </div>
+
+  <script>
+    // Reemplazá con la URL de tu nuevo Web App de Google Apps Script para Inseminación
+    const GOOGLE_SCRIPT_URL = "PEGAR_AQUI_URL_DE_TU_APPS_SCRIPT_INSEMINACION";
+
+    let db = null;
+    let deferredPrompt = null;
+    const input = document.getElementById('caravana');
+    const statusDiv = document.getElementById('status');
+
+    function activarCampo() {
+      if (input) {
+        input.focus();
+      }
+    }
+
+    document.addEventListener('touchstart', activarCampo, { passive: true });
+    document.addEventListener('click', activarCampo, { passive: true });
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('btnInstall');
+      btn.style.display = 'block';
+      btn.onclick = () => {
+        btn.style.display = 'none';
+        deferredPrompt.prompt();
+      };
+    });
+
+    function initDB() {
+      try {
+        const request = indexedDB.open("InseminacionTamboDB_v1", 1);
+
+        request.onupgradeneeded = function(e) {
+          db = e.target.result;
+          if (!db.objectStoreNames.contains("inseminacion")) {
+            db.createObjectStore("inseminacion", { keyPath: "id" });
+          }
+        };
+
+        request.onsuccess = function(e) {
+          db = e.target.result;
+          statusDiv.textContent = 'LISTO PARA REGISTRAR INSEMINACIÓN';
+          actualizarContadorPendientes();
+          renderLecturas();
+          activarCampo();
+        };
+
+        request.onerror = function() {
+          statusDiv.textContent = 'LISTO (Modo directo offline)';
+          activarCampo();
+        };
+      } catch (err) {
+        statusDiv.textContent = 'LISTO (Modo directo offline)';
+        activarCampo();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      activarCampo();
+      initDB();
+    });
+
+    function procesarLectura() {
+      const id = input.value.trim();
+      input.value = '';
+
+      if (!id) return;
+
+      const hoy = new Date();
+      const dia = String(hoy.getDate()).padStart(2, '0');
+      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      const anio = hoy.getFullYear();
+      const fechaHoy = `${dia}/${mes}/${anio}`;
+
+      if (!db) {
+        statusDiv.className = 'status-nuevo';
+        statusDiv.textContent = '✓ LEÍDO: ' + id + ' (Esperando DB)';
+        activarCampo();
+        return;
+      }
+
+      const tx = db.transaction(["inseminacion"], "readwrite");
+      const store = tx.objectStore("inseminacion");
+      const getReq = store.get(id);
+
+      getReq.onsuccess = function() {
+        if (getReq.result) {
+          statusDiv.className = 'status-existe';
+          statusDiv.textContent = '⚠️ ¡CARAVANA YA REGISTRADA! (' + id + ')';
+          actualizarContadorPendientes();
+        } else {
+          store.add({ id: id, fecha: fechaHoy, synced: 0 });
+          statusDiv.className = 'status-nuevo';
+          statusDiv.textContent = '✓ INSEMINACIÓN REGISTRADA: ' + id;
+        }
+      };
+
+      tx.oncomplete = function() {
+        actualizarContadorPendientes();
+        renderLecturas();
+        if (navigator.onLine) sincronizarDatos(false);
+        activarCampo();
+      };
+    }
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.keyCode === 13) {
+        e.preventDefault();
+        procesarLectura();
+      }
+    });
+
+    function actualizarContadorPendientes() {
+      if (!db) return;
+      const tx = db.transaction(["inseminacion"], "readonly");
+      const store = tx.objectStore("inseminacion");
+      const req = store.getAll();
+
+      req.onsuccess = function() {
+        const sinSincronizar = req.result.filter(item => Number(item.synced) === 0);
+        document.getElementById('pendientesCount').textContent = sinSincronizar.length;
+      };
+    }
+
+    function renderLecturas() {
+      if (!db) return;
+      const tx = db.transaction(["inseminacion"], "readonly");
+      const store = tx.objectStore("inseminacion");
+      const req = store.getAll();
+
+      req.onsuccess = function() {
+        const lecturasList = document.getElementById('lecturasList');
+        const totalLecturas = document.getElementById('totalLecturas');
+        const items = req.result.reverse();
+
+        if (!items || items.length === 0) {
+          lecturasList.innerHTML = '<li class="empty-msg">No hay lecturas registradas aún.</li>';
+          totalLecturas.textContent = 'Total: 0';
+          return;
+        }
+
+        lecturasList.innerHTML = '';
+        items.forEach((item) => {
+          const li = document.createElement('li');
+          const esEnviado = Number(item.synced) === 1;
+          li.innerHTML = `
+            <div>
+              <strong>${item.id}</strong><br>
+              <small style="color: #666;">Fecha (Col. M): ${item.fecha}</small>
+            </div>
+            <span style="font-size:0.8rem; font-weight: bold; color: ${esEnviado ? '#28a745' : '#f57c00'};">
+              ${esEnviado ? '✓ Enviado' : '⏳ Pendiente'}
+            </span>
+          `;
+          lecturasList.appendChild(li);
+        });
+        totalLecturas.textContent = 'Total: ' + items.length;
+      };
+    }
+
+    function sincronizarDatos(manual) {
+      if (!navigator.onLine) {
+        if (manual) alert("Sin conexión a Internet en este momento.");
+        return;
+      }
+      if (!db) return;
+
+      const tx = db.transaction(["inseminacion"], "readonly");
+      const store = tx.objectStore("inseminacion");
+      const req = store.getAll();
+
+      req.onsuccess = function() {
+        const pendientes = req.result.filter(item => Number(item.synced) === 0);
+        
+        if (!pendientes || pendientes.length === 0) {
+          if (manual) {
+            statusDiv.className = 'status-sync';
+            statusDiv.textContent = 'No hay lecturas pendientes por enviar';
+          }
+          actualizarContadorPendientes();
+          return;
+        }
+
+        statusDiv.className = 'status-sync';
+        statusDiv.textContent = 'Actualizando ' + pendientes.length + ' lecturas en Columna M...';
+
+        fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ lecturas: pendientes })
+        })
+        .then(() => {
+          setTimeout(() => {
+            const writeTx = db.transaction(["inseminacion"], "readwrite");
+            const writeStore = writeTx.objectStore("inseminacion");
+
+            pendientes.forEach(item => {
+              item.synced = 1;
+              writeStore.put(item);
+            });
+
+            writeTx.oncomplete = function() {
+              statusDiv.className = 'status-nuevo';
+              statusDiv.textContent = '✓ Inseminaciones sincronizadas OK (' + pendientes.length + ')';
+              actualizarContadorPendientes();
+              renderLecturas();
+              activarCampo();
+            };
+          }, 800);
+        })
+        .catch((err) => {
+          statusDiv.className = 'status-existe';
+          statusDiv.textContent = 'Error al actualizar lecturas en la planilla';
+          actualizarContadorPendientes();
+          activarCampo();
+        });
+      };
+    }
+
+    function vaciarBaseLocal() {
+      if (!db) return;
+      if (confirm("¿Querés vaciar el registro local de Inseminación del celular?")) {
+        const tx = db.transaction(["inseminacion"], "readwrite");
+        const store = tx.objectStore("inseminacion");
+        const clearReq = store.clear();
+
+        clearReq.onsuccess = function() {
+          statusDiv.className = 'status-sync';
+          statusDiv.textContent = 'Base local de Inseminación vaciada';
+          actualizarContadorPendientes();
+          renderLecturas();
+          activarCampo();
+        };
+
+        clearReq.onerror = function() {
+          statusDiv.className = 'status-existe';
+          statusDiv.textContent = 'Error al vaciar base local';
+        };
+      }
+    }
+
+    window.addEventListener('online', () => sincronizarDatos(false));
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw_inseminacion.js');
+    }
+  </script>
+</body>
+</html>
