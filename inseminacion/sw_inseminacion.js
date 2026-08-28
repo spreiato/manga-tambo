@@ -1,4 +1,4 @@
-const CACHE_NAME = 'inseminacion-v2';
+const CACHE_NAME = 'inseminacion-v3';
 const BASE_PATH = self.location.pathname.substring(0, self.location.pathname.lastIndexOf('/') + 1);
 
 const ASSETS = [
@@ -32,6 +32,14 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
+        // Devuelve caché y actualiza en segundo plano si hay red
+        fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, networkResponse);
+            });
+          }
+        }).catch(() => {});
         return cachedResponse;
       }
       return fetch(event.request).then((networkResponse) => {
@@ -42,9 +50,9 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
+      }).catch(() => {
+        return caches.match(BASE_PATH + 'index_inseminacion.html');
       });
-    }).catch(() => {
-      return caches.match(BASE_PATH + 'index_inseminacion.html') || caches.match(BASE_PATH);
     })
   );
 });
