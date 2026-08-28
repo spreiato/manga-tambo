@@ -10,8 +10,8 @@ document.addEventListener("DOMContentLoaded", function() {
         <button onclick="toggleMenuApps()" style="background:none;border:none;color:white;font-size:14px;cursor:pointer;">✕</button>
       </div>
       <a href="../index.html">🐄 Control de Mangas (Principal)</a>
-      <a href="../vacunacion/index_vacunacion.html">💉 Vacunación (Col. N)</a>
-      <a href="../fc_llenas/index_fc_llenas.html">🐄 Llenas (Col. L)</a>
+      <a href="../vacunacion/index_vacunacion.html">💉 Vacunación (</a>
+      <a href="../fc_llenas/index_fc_llenas.html">🐄 Llenas </a>
       <a href="../fc_vacias/index_fc_vacias.html">🐮 Vacías</a>
       <a href="../inseminacion/index_inseminacion.html">🧬 Inseminación</a>
       <a href="../traslado/traslado.html">🚛 Traslado</a>
