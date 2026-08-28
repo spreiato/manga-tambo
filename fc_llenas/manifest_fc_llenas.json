@@ -2,6 +2,7 @@
   "name": "Control F.C. Llenas",
   "short_name": "FC Llenas",
   "start_url": "./index_fc_llenas.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f4f6f9",
   "theme_color": "#2e7d32",
