@@ -36,7 +36,6 @@
     .btn-clear { background: #6c757d; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
     .btn-install { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; font-size: 15px; }
 
-    /* Estilos para la lista de lecturas */
     .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
     .list-header h3 { font-size: 1rem; color: #7b1fa2; margin: 0; }
     ul.item-list { list-style: none; padding: 0; margin: 0; text-align: left; max-height: 300px; overflow-y: auto; }
@@ -62,7 +61,6 @@
     </div>
   </div>
 
-  <!-- Panel de Lecturas Registradas -->
   <div class="card">
     <div class="list-header">
       <h3>Lecturas Registradas</h3>
@@ -74,7 +72,7 @@
   </div>
 
   <script>
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw4aliKfv66PD37H0JnAjSgRdKNmdLTExKqPer1vo9d6dNbHR_au44GkCPT9CnrJH5O/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwKztKjvXFiCEJ2SuZEkqqpP6rkWDbxKIqpV9XWGpCFRoqCTYaCSfNpmgAUio5I3jCz/exec";
 
     let db = null;
     let deferredPrompt = null;
@@ -126,7 +124,7 @@
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        const id = input.value.replace(/[^a-zA-Z0-9]/g, "").trim();
+        const id = input.value.trim();
         input.value = '';
 
         if (!id) return;
