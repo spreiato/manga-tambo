@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vacunacion-v1';
+const CACHE_NAME = 'vacunacion-v2';
 const BASE_PATH = self.location.pathname.substring(0, self.location.pathname.lastIndexOf('/') + 1);
 
 const ASSETS = [
@@ -10,7 +10,17 @@ const ASSETS = [
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      // Usamos addAll de forma segura o cacheamos individualmente 
+      // para que si falla uno por falta de red, no tire abajo todo el proceso.
+      return Promise.all(
+        ASSETS.map(url => {
+          return cache.add(url).catch(err => {
+            console.log('No se pudo cachear en el arranque (modo offline inicial):', url);
+          });
+        })
+      );
+    })
   );
 });
 
@@ -32,6 +42,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
+        // Devuelve lo que está en caché y actualiza en segundo plano si hay red
         fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => {
@@ -41,6 +52,8 @@ self.addEventListener('fetch', (event) => {
         }).catch(() => {});
         return cachedResponse;
       }
+      
+      // Si no está en caché, intenta buscarlo en la red
       return fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const responseToCache = networkResponse.clone();
@@ -50,6 +63,7 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       }).catch(() => {
+        // Red de seguridad final para modo offline absoluto: devuelve el index principal desde caché
         return caches.match(BASE_PATH + 'index_vacunacion.html');
       });
     })
