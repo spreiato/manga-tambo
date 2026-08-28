@@ -1,4 +1,4 @@
-const CACHE_NAME = 'inseminacion-v1';
+const CACHE_NAME = 'inseminacion-v2';
 const BASE_PATH = self.location.pathname.substring(0, self.location.pathname.lastIndexOf('/') + 1);
 
 const ASSETS = [
