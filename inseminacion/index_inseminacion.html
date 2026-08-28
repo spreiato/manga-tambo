@@ -73,10 +73,10 @@
   </div>
 
   <script>
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwAhEaabmu2Jc0cESwsdaXnR8c04OS7Wz2cDw5G_JTQBErktZ-JTtIsveRFhluWGgc-/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxow0pYT8hcOe1YiBdbrpzsGsCfARrE_Tdkr2rkb9d93tIygx34iMJVUdUD5Xnkviwa/exec";
 
     let db = null;
-    let fallbackMemoryDB = []; // Respaldo en memoria si IndexedDB se bloquea offline
+    let fallbackMemoryDB = [];
     let deferredPrompt = null;
     const input = document.getElementById('caravana');
     const statusDiv = document.getElementById('status');
