@@ -56,8 +56,8 @@
     <div class="info-panel">
       <span>Pendientes F.C. Llenas: <strong id="pendientesCount">0</strong></span>
       <div class="actions-panel">
-        <button class="btn-sync" onclick="sincronizarDatos(true)">Sincronizar</button>
-        <button class="btn-clear" onclick="vaciarBaseLocal()">Vaciar Local</button>
+        <button class="btn-sync" type="button" onclick="sincronizarDatos(true)">Sincronizar</button>
+        <button class="btn-clear" type="button" onclick="vaciarBaseLocal()">Vaciar Local</button>
       </div>
     </div>
   </div>
@@ -134,49 +134,53 @@
       initDB();
     });
 
-    input.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const id = input.value.trim();
-        input.value = '';
+    function procesarLectura() {
+      const id = input.value.trim();
+      input.value = '';
 
-        if (!id) return;
+      if (!id) return;
 
-        const hoy = new Date();
-        const dia = String(hoy.getDate()).padStart(2, '0');
-        const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-        const anio = hoy.getFullYear();
-        const fechaHoy = `${dia}/${mes}/${anio}`;
+      const hoy = new Date();
+      const dia = String(hoy.getDate()).padStart(2, '0');
+      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+      const anio = hoy.getFullYear();
+      const fechaHoy = `${dia}/${mes}/${anio}`;
 
-        if (!db) {
-          statusDiv.className = 'status-nuevo';
-          statusDiv.textContent = '✓ LEÍDO: ' + id + ' (Esperando DB)';
-          activarCampo();
-          return;
-        }
+      if (!db) {
+        statusDiv.className = 'status-nuevo';
+        statusDiv.textContent = '✓ LEÍDO: ' + id + ' (Esperando DB)';
+        activarCampo();
+        return;
+      }
 
-        const tx = db.transaction(["fcllenas"], "readwrite");
-        const store = tx.objectStore("fcllenas");
-        const getReq = store.get(id);
+      const tx = db.transaction(["fcllenas"], "readwrite");
+      const store = tx.objectStore("fcllenas");
+      const getReq = store.get(id);
 
-        getReq.onsuccess = function() {
-          if (getReq.result) {
-            statusDiv.className = 'status-existe';
-            statusDiv.textContent = '⚠️ ¡CARAVANA YA REGISTRADA! (' + id + ')';
-            actualizarContadorPendientes();
-          } else {
-            store.add({ id: id, fecha: fechaHoy, synced: 0 });
-            statusDiv.className = 'status-nuevo';
-            statusDiv.textContent = '✓ F.C. LLENA REGISTRADA: ' + id;
-          }
-        };
-
-        tx.oncomplete = function() {
+      getReq.onsuccess = function() {
+        if (getReq.result) {
+          statusDiv.className = 'status-existe';
+          statusDiv.textContent = '⚠️ ¡CARAVANA YA REGISTRADA! (' + id + ')';
           actualizarContadorPendientes();
-          renderLecturas();
-          if (navigator.onLine) sincronizarDatos(false);
-          activarCampo();
-        };
+        } else {
+          store.add({ id: id, fecha: fechaHoy, synced: 0 });
+          statusDiv.className = 'status-nuevo';
+          statusDiv.textContent = '✓ F.C. LLENA REGISTRADA: ' + id;
+        }
+      };
+
+      tx.oncomplete = function() {
+        actualizarContadorPendientes();
+        renderLecturas();
+        if (navigator.onLine) sincronizarDatos(false);
+        activarCampo();
+      };
+    }
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.keyCode === 13) {
+        e.preventDefault();
+        procesarLectura();
       }
     });
 
