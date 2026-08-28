@@ -76,14 +76,13 @@
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwAhEaabmu2Jc0cESwsdaXnR8c04OS7Wz2cDw5G_JTQBErktZ-JTtIsveRFhluWGgc-/exec";
 
     let db = null;
+    let fallbackMemoryDB = []; // Respaldo en memoria si IndexedDB se bloquea offline
     let deferredPrompt = null;
     const input = document.getElementById('caravana');
     const statusDiv = document.getElementById('status');
 
     function activarCampo() {
-      if (input) {
-        input.focus();
-      }
+      if (input) input.focus();
     }
 
     document.addEventListener('touchstart', activarCampo, { passive: true });
@@ -102,7 +101,7 @@
 
     function initDB() {
       try {
-        const request = indexedDB.open("InseminacionTamboDB_v1", 1);
+        const request = indexedDB.open("InseminacionTamboDB_v2", 1);
 
         request.onupgradeneeded = function(e) {
           db = e.target.result;
@@ -120,13 +119,19 @@
         };
 
         request.onerror = function() {
-          statusDiv.textContent = 'LISTO (Modo directo offline)';
-          activarCampo();
+          activarModoMemoria('LISTO (Modo respaldo memoria)');
         };
       } catch (err) {
-        statusDiv.textContent = 'LISTO (Modo directo offline)';
-        activarCampo();
+        activarModoMemoria('LISTO (Modo respaldo memoria)');
       }
+    }
+
+    function activarModoMemoria(mensaje) {
+      db = { _isMemory: true };
+      statusDiv.textContent = mensaje;
+      actualizarContadorPendientes();
+      renderLecturas();
+      activarCampo();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -146,9 +151,26 @@
       const anio = hoy.getFullYear();
       const fechaHoy = `${dia}/${mes}/${anio}`;
 
+      if (db && db._isMemory) {
+        const existe = fallbackMemoryDB.some(item => item.id === id);
+        if (existe) {
+          statusDiv.className = 'status-existe';
+          statusDiv.textContent = '⚠️ ¡CARAVANA YA REGISTRADA! (' + id + ')';
+        } else {
+          fallbackMemoryDB.push({ id: id, fecha: fechaHoy, synced: 0 });
+          statusDiv.className = 'status-nuevo';
+          statusDiv.textContent = '✓ INSEMINACIÓN REGISTRADA: ' + id;
+        }
+        actualizarContadorPendientes();
+        renderLecturas();
+        if (navigator.onLine) sincronizarDatos(false);
+        activarCampo();
+        return;
+      }
+
       if (!db) {
         statusDiv.className = 'status-nuevo';
-        statusDiv.textContent = '✓ LEÍDO: ' + id + ' (Esperando DB)';
+        statusDiv.textContent = '✓ LEÍDO: ' + id + ' (Sin base activa)';
         activarCampo();
         return;
       }
@@ -185,51 +207,69 @@
     });
 
     function actualizarContadorPendientes() {
-      if (!db) return;
-      const tx = db.transaction(["inseminacion"], "readonly");
-      const store = tx.objectStore("inseminacion");
-      const req = store.getAll();
-
-      req.onsuccess = function() {
-        const sinSincronizar = req.result.filter(item => Number(item.synced) === 0);
+      if (db && db._isMemory) {
+        const sinSincronizar = fallbackMemoryDB.filter(item => Number(item.synced) === 0);
         document.getElementById('pendientesCount').textContent = sinSincronizar.length;
-      };
+        return;
+      }
+      if (!db) return;
+      
+      try {
+        const tx = db.transaction(["inseminacion"], "readonly");
+        const store = tx.objectStore("inseminacion");
+        const req = store.getAll();
+
+        req.onsuccess = function() {
+          const sinSincronizar = req.result.filter(item => Number(item.synced) === 0);
+          document.getElementById('pendientesCount').textContent = sinSincronizar.length;
+        };
+      } catch (e) {}
     }
 
     function renderLecturas() {
+      if (db && db._isMemory) {
+        procesarRenderItems([...fallbackMemoryDB].reverse());
+        return;
+      }
       if (!db) return;
-      const tx = db.transaction(["inseminacion"], "readonly");
-      const store = tx.objectStore("inseminacion");
-      const req = store.getAll();
 
-      req.onsuccess = function() {
-        const lecturasList = document.getElementById('lecturasList');
-        const totalLecturas = document.getElementById('totalLecturas');
-        const items = req.result.reverse();
+      try {
+        const tx = db.transaction(["inseminacion"], "readonly");
+        const store = tx.objectStore("inseminacion");
+        const req = store.getAll();
 
-        if (!items || items.length === 0) {
-          lecturasList.innerHTML = '<li class="empty-msg">No hay lecturas registradas aún.</li>';
-          totalLecturas.textContent = 'Total: 0';
-          return;
-        }
+        req.onsuccess = function() {
+          procesarRenderItems(req.result.reverse());
+        };
+      } catch (e) {}
+    }
 
-        lecturasList.innerHTML = '';
-        items.forEach((item) => {
-          const li = document.createElement('li');
-          const esEnviado = Number(item.synced) === 1;
-          li.innerHTML = `
-            <div>
-              <strong>${item.id}</strong><br>
-              <small style="color: #666;">Fecha (Col. M): ${item.fecha}</small>
-            </div>
-            <span style="font-size:0.8rem; font-weight: bold; color: ${esEnviado ? '#28a745' : '#f57c00'};">
-              ${esEnviado ? '✓ Enviado' : '⏳ Pendiente'}
-            </span>
-          `;
-          lecturasList.appendChild(li);
-        });
-        totalLecturas.textContent = 'Total: ' + items.length;
-      };
+    function procesarRenderItems(items) {
+      const lecturasList = document.getElementById('lecturasList');
+      const totalLecturas = document.getElementById('totalLecturas');
+
+      if (!items || items.length === 0) {
+        lecturasList.innerHTML = '<li class="empty-msg">No hay lecturas registradas aún.</li>';
+        totalLecturas.textContent = 'Total: 0';
+        return;
+      }
+
+      lecturasList.innerHTML = '';
+      items.forEach((item) => {
+        const li = document.createElement('li');
+        const esEnviado = Number(item.synced) === 1;
+        li.innerHTML = `
+          <div>
+            <strong>${item.id}</strong><br>
+            <small style="color: #666;">Fecha (Col. M): ${item.fecha}</small>
+          </div>
+          <span style="font-size:0.8rem; font-weight: bold; color: ${esEnviado ? '#28a745' : '#f57c00'};">
+            ${esEnviado ? '✓ Enviado' : '⏳ Pendiente'}
+          </span>
+        `;
+        lecturasList.appendChild(li);
+      });
+      totalLecturas.textContent = 'Total: ' + items.length;
     }
 
     function sincronizarDatos(manual) {
@@ -237,64 +277,96 @@
         if (manual) alert("Sin conexión a Internet en este momento.");
         return;
       }
+
+      if (db && db._isMemory) {
+        enviarPendientes(fallbackMemoryDB, manual);
+        return;
+      }
+
       if (!db) return;
 
-      const tx = db.transaction(["inseminacion"], "readonly");
-      const store = tx.objectStore("inseminacion");
-      const req = store.getAll();
+      try {
+        const tx = db.transaction(["inseminacion"], "readonly");
+        const store = tx.objectStore("inseminacion");
+        const req = store.getAll();
 
-      req.onsuccess = function() {
-        const pendientes = req.result.filter(item => Number(item.synced) === 0);
-        
-        if (!pendientes || pendientes.length === 0) {
-          if (manual) {
-            statusDiv.className = 'status-sync';
-            statusDiv.textContent = 'No hay lecturas pendientes por enviar';
-          }
-          actualizarContadorPendientes();
-          return;
+        req.onsuccess = function() {
+          enviarPendientes(req.result, manual);
+        };
+      } catch (e) {}
+    }
+
+    function enviarPendientes(arrayItems, manual) {
+      const pendientes = arrayItems.filter(item => Number(item.synced) === 0);
+      
+      if (!pendientes || pendientes.length === 0) {
+        if (manual) {
+          statusDiv.className = 'status-sync';
+          statusDiv.textContent = 'No hay lecturas pendientes por enviar';
         }
+        actualizarContadorPendientes();
+        return;
+      }
 
-        statusDiv.className = 'status-sync';
-        statusDiv.textContent = 'Actualizando ' + pendientes.length + ' lecturas en Columna M...';
+      statusDiv.className = 'status-sync';
+      statusDiv.textContent = 'Actualizando ' + pendientes.length + ' lecturas en Columna M...';
 
-        fetch(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ lecturas: pendientes })
-        })
-        .then(() => {
-          setTimeout(() => {
-            const writeTx = db.transaction(["inseminacion"], "readwrite");
-            const writeStore = writeTx.objectStore("inseminacion");
+      fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ lecturas: pendientes })
+      })
+      .then(() => {
+        setTimeout(() => {
+          if (db && db._isMemory) {
+            pendientes.forEach(item => item.synced = 1);
+            statusDiv.className = 'status-nuevo';
+            statusDiv.textContent = '✓ Inseminaciones sincronizadas OK (' + pendientes.length + ')';
+            actualizarContadorPendientes();
+            renderLecturas();
+            activarCampo();
+            return;
+          }
 
-            pendientes.forEach(item => {
-              item.synced = 1;
-              writeStore.put(item);
-            });
+          const writeTx = db.transaction(["inseminacion"], "readwrite");
+          const writeStore = writeTx.objectStore("inseminacion");
 
-            writeTx.oncomplete = function() {
-              statusDiv.className = 'status-nuevo';
-              statusDiv.textContent = '✓ Inseminaciones sincronizadas OK (' + pendientes.length + ')';
-              actualizarContadorPendientes();
-              renderLecturas();
-              activarCampo();
-            };
-          }, 800);
-        })
-        .catch((err) => {
-          statusDiv.className = 'status-existe';
-          statusDiv.textContent = 'Error al actualizar lecturas en la planilla';
-          actualizarContadorPendientes();
-          activarCampo();
-        });
-      };
+          pendientes.forEach(item => {
+            item.synced = 1;
+            writeStore.put(item);
+          });
+
+          writeTx.oncomplete = function() {
+            statusDiv.className = 'status-nuevo';
+            statusDiv.textContent = '✓ Inseminaciones sincronizadas OK (' + pendientes.length + ')';
+            actualizarContadorPendientes();
+            renderLecturas();
+            activarCampo();
+          };
+        }, 800);
+      })
+      .catch((err) => {
+        statusDiv.className = 'status-existe';
+        statusDiv.textContent = 'Error al actualizar lecturas en la planilla';
+        actualizarContadorPendientes();
+        activarCampo();
+      });
     }
 
     function vaciarBaseLocal() {
-      if (!db) return;
       if (confirm("¿Querés vaciar el registro local de Inseminación del celular?")) {
+        if (db && db._isMemory) {
+          fallbackMemoryDB = [];
+          statusDiv.className = 'status-sync';
+          statusDiv.textContent = 'Base local de Inseminación vaciada';
+          actualizarContadorPendientes();
+          renderLecturas();
+          activarCampo();
+          return;
+        }
+
+        if (!db) return;
         const tx = db.transaction(["inseminacion"], "readwrite");
         const store = tx.objectStore("inseminacion");
         const clearReq = store.clear();
@@ -305,11 +377,6 @@
           actualizarContadorPendientes();
           renderLecturas();
           activarCampo();
-        };
-
-        clearReq.onerror = function() {
-          statusDiv.className = 'status-existe';
-          statusDiv.textContent = 'Error al vaciar base local';
         };
       }
     }
