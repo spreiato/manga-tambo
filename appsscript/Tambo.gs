@@ -1,6 +1,6 @@
 /* Manga Tambo — protocolo confirmado v1. Mantiene Base_Rodeo y las columnas existentes. */
 function doGet(e) {
-  return tamboJson_({status:'success', protocol:1, release:'2026-10-24.1', service:'Manga Tambo'});
+  return tamboJson_({status:'success', protocol:1, release:'2026-10-24.3', service:'Manga Tambo'});
 }
 function doPost(e) {
   var lock = LockService.getScriptLock(), locked = false;
@@ -39,7 +39,7 @@ function tamboJson_(obj) {
 }
 function tamboId_(value) {
   if (typeof value !== 'string') throw new Error('La identificacion debe enviarse como texto.');
-  var id = value.trim();
+  var id = value.trim().replace(/^'+/, '');
   if (!id || id.length > 128 || !/^[a-zA-Z0-9 .\/_-]+$/.test(id)) throw new Error('Identificacion invalida.');
   return id;
 }
@@ -57,7 +57,7 @@ function tamboPlan_(p,rows,defaults) {
   var columns = {ventas:8,brucelosis:9,fc_vacias:11,fc_llenas:12,inseminacion:13,vacunacion:14,traslado:6};
   if (module!=='manga' && !Object.prototype.hasOwnProperty.call(columns,module)) throw new Error('Modulo desconocido.');
   var action = p.action || 'sincronizar';
-  if (action!=='sincronizar' && !(module==='inseminacion' && action==='validar')) throw new Error('Accion desconocida.');
+  if (action!=='sincronizar' && !(module!=='manga' && action==='validar')) throw new Error('Accion desconocida.');
   if (!Array.isArray(p.lecturas) || (p.protocol===1 && p.lecturas.length>200)) throw new Error('Lote invalido.');
   var index = Object.create(null), ambiguous = Object.create(null);
   rows.forEach(function(row,i){
@@ -82,11 +82,11 @@ function tamboPlan_(p,rows,defaults) {
         var newRow;
         if (module==='manga') {
           if (defaults.length!==5 || defaults.some(function(v){return !String(v).trim();})) throw new Error('Complete los valores por defecto en Manga_Dinamica C10:C14.');
-          newRow=[id,defaults[1],defaults[0],defaults[2],defaults[3],defaults[4],'','','','','','','','',''];
+          newRow=["'"+id,defaults[1],defaults[0],defaults[2],defaults[3],defaults[4],'','','','','','','','',''];
         } else {
           tamboDate_(item.fecha);
           // Conserva los valores de alta ya definidos en la funcion Validar original.
-          newRow=[id,'Hembra','28/08/2026','Aberdinangus','Vacas','01028000324/02',450,'','','','','',tamboDate_(item.fecha),'','registros no leidos'];
+          newRow=["'"+id,'Hembra','28/08/2026','Aberdinangus','Vacas','01028000324/02',450,'','','','','',module==='inseminacion'?tamboDate_(item.fecha):'','','registros no leidos'];
         }
         result.additions.push(newRow);
         index[key]=rows.length+1+result.additions.length;
