@@ -31,10 +31,11 @@
     .status-sync { background-color: #d9e1f2 !important; color: #1f4e78 !important; }
     
     .info-panel { margin-top: 15px; font-size: 13px; color: #666; display: flex; justify-content: space-between; align-items: center; }
-    .actions-panel { display: flex; gap: 6px; }
+    .actions-panel { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
     
-    .btn-sync { background: #1565c0; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
-    .btn-clear { background: #6c757d; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    .btn-sync { background: #1565c0; color: white; border: none; padding: 10px 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; }
+    .btn-validar { background: #2e7d32; color: white; border: none; padding: 10px 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; }
+    .btn-clear { background: #6c757d; color: white; border: none; padding: 10px 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; }
     .btn-install { background: #0d47a1; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; font-size: 15px; }
 
     .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
@@ -54,10 +55,11 @@
     <div id="status">Iniciando base de datos...</div>
     
     <div class="info-panel">
-      <span>Pendientes Inseminación: <strong id="pendientesCount">0</strong></span>
+      <span>Pendientes: <strong id="pendientesCount">0</strong></span>
       <div class="actions-panel">
         <button class="btn-sync" type="button" onclick="sincronizarDatos(true)">Sincronizar</button>
-        <button class="btn-clear" type="button" onclick="vaciarBaseLocal()">Vaciar Local</button>
+        <button class="btn-validar" type="button" onclick="validarCaravanas()">Validar</button>
+        <button class="btn-clear" type="button" onclick="vaciarBaseLocal()">Vaciar</button>
       </div>
     </div>
   </div>
@@ -315,7 +317,7 @@
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ lecturas: pendientes })
+        body: JSON.stringify({ action: 'sincronizar', lecturas: pendientes })
       })
       .then(() => {
         setTimeout(() => {
@@ -350,6 +352,63 @@
         statusDiv.className = 'status-existe';
         statusDiv.textContent = 'Error al actualizar lecturas en la planilla';
         actualizarContadorPendientes();
+        activarCampo();
+      });
+    }
+
+    // NUEVA FUNCIÓN: VALIDAR CARAVANAS E INSERTAR FALTANTES
+    function validarCaravanas() {
+      if (!navigator.onLine) {
+        alert("Sin conexión a Internet para validar caravanas.");
+        return;
+      }
+
+      if (db && db._isMemory) {
+        enviarValidacionServidor(fallbackMemoryDB);
+        return;
+      }
+
+      if (!db) return;
+
+      try {
+        const tx = db.transaction(["inseminacion"], "readonly");
+        const store = tx.objectStore("inseminacion");
+        const req = store.getAll();
+
+        req.onsuccess = function() {
+          enviarValidacionServidor(req.result);
+        };
+      } catch (e) {
+        alert("Error al leer la base local para validar.");
+      }
+    }
+
+    function enviarValidacionServidor(arrayItems) {
+      if (!arrayItems || arrayItems.length === 0) {
+        statusDiv.className = 'status-sync';
+        statusDiv.textContent = 'No hay registros locales para validar';
+        return;
+      }
+
+      statusDiv.className = 'status-sync';
+      statusDiv.textContent = 'Validando y creando faltantes...';
+
+      fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'validar', lecturas: arrayItems })
+      })
+      .then(() => {
+        setTimeout(() => {
+          statusDiv.className = 'status-nuevo';
+          statusDiv.textContent = '✓ Validación y carga de faltantes OK';
+          activarCampo();
+        }, 1000);
+      })
+      .catch((err) => {
+        statusDiv.className = 'status-existe';
+        statusDiv.textContent = 'Error al conectar con el servidor para validar';
         activarCampo();
       });
     }
