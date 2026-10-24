@@ -133,7 +133,7 @@
   }
   function capture() {
     if(!ready){message('Espere a que la base local esté lista.',true);return;}
-    let id=input.value.trim();if(cfg.clean)id=id.replace(/[^a-zA-Z0-9]/g,'');
+    let id=input.value.trim().replace(/^'+/, '');if(cfg.clean)id=id.replace(/[^a-zA-Z0-9]/g,'');
     if(!id)return;
     if(id.length>128 || !/^[a-zA-Z0-9 .\/_-]+$/.test(id)){message('Caravana inválida. Revise la lectura.',true);return;}
     const renspa=$('renspaInput')?$('renspaInput').value.trim():'';
@@ -165,7 +165,17 @@
     }catch(e){message('No se pudo generar el respaldo: '+e.message,true);}
   }
   window.sincronizarDatos=manual=>sync(manual);
-  window.validarCaravanas=()=>sync(true,true);
+  window.validarCaravanas=()=>{if(cfg.module!=='manga')return sync(true,true);};
+  if(cfg.module!=='manga'){
+    let validateButton=document.querySelector('[onclick="validarCaravanas()"]');
+    if(!validateButton){
+      const syncButton=$('btnSyncNow') || document.querySelector('[onclick="sincronizarDatos(true)"]');
+      validateButton=document.createElement('button');validateButton.type='button';validateButton.textContent='Validar';
+      validateButton.className='btn-validar';validateButton.style.cssText='background:#2e7d32;color:white;border:0;border-radius:6px;padding:10px;font-weight:bold;cursor:pointer;';
+      validateButton.addEventListener('click',window.validarCaravanas);syncButton.after(validateButton);
+    }
+    validateButton.id='btnValidar';validateButton.title='Comprueba las caravanas y da de alta las inexistentes. Luego sincronice las lecturas.';
+  }
   window.vaciarBaseLocal=clearLocal;
   if(cfg.module==='manga')window.toggleMenuApps=()=>{const p=$('panelMenuApps');p.style.display=p.style.display==='block'?'none':'block';};
   input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.repeat){e.preventDefault();capture();}});
