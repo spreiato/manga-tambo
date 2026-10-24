@@ -20,7 +20,7 @@ for(const [module,column] of Object.entries({ventas:8,brucelosis:9,fc_vacias:11,
   const p=plain(ctx.tamboPlan_({module,lecturas:[item]},[],defaults));assert.equal(p.results[0].status,'not_found');assert.equal(p.writes.length,0);assert.equal(p.additions.length,0);
  });
 }
-test('Manga crea alta completa y evita duplicados en el lote',()=>{const p=plain(ctx.tamboPlan_({module:'manga',lecturas:[item,item]},[],defaults));assert.equal(p.additions.length,1);assert.equal(p.additions[0].length,15);assert.equal(p.additions[0][0],item.id);assert.equal(p.additions[0][5],defaults[4]);});
+test('Manga crea alta completa y evita duplicados en el lote',()=>{const p=plain(ctx.tamboPlan_({module:'manga',lecturas:[item,item]},[],defaults));assert.equal(p.additions.length,1);assert.equal(p.additions[0].length,15);assert.equal(p.additions[0][0],"'"+item.id);assert.equal(p.additions[0][5],defaults[4]);});
 test('Manga exige configuracion antes de dar altas',()=>{const p=plain(ctx.tamboPlan_({module:'manga',lecturas:[item]},[],[]));assert.equal(p.additions.length,0);assert.equal(p.results[0].status,'error');});
 test('Validar admite faltantes y mantiene los valores originales',()=>{const p=plain(ctx.tamboPlan_({module:'inseminacion',action:'validar',lecturas:[item]},[],defaults));assert.equal(p.additions.length,1);assert.equal(p.additions[0][1],'Hembra');assert.equal(p.additions[0][14],'registros no leidos');});
 test('Validar existente no pisa fechas ni atributos',()=>{const p=plain(ctx.tamboPlan_({module:'inseminacion',action:'validar',lecturas:[item]},[row(item.id)],defaults));assert.equal(p.writes.length,0);assert.equal(p.additions.length,0);});
@@ -60,3 +60,16 @@ test('Fallo de escritura no devuelve confirmaciones falsas',()=>{const h=backend
 test('Las fechas conservan hora cero para filtros de Sheets',()=>{const date=ctx.tamboDate_('24/10/2026');assert.equal(date.getHours(),0);});
 test('Lotes offline anteriores de mas de 200 lecturas siguen admitidos',()=>{const rows=[row(item.id)];const p=plain(ctx.tamboPlan_({lecturas:Array.from({length:201},()=>item)},rows,defaults));assert.equal(p.results.length,201);});
 test('Cliente nuevo usa lotes limitados y rechaza lotes excesivos',()=>{assert.throws(()=>ctx.tamboPlan_({protocol:1,lecturas:Array.from({length:201},()=>item)},[row(item.id)],defaults));});
+
+for(const module of ['ventas','brucelosis','fc_vacias','fc_llenas','inseminacion','vacunacion','traslado']){
+ test(module+' valida sin sobrescribir datos y conserva comilla y ceros en altas',()=>{
+  const p=plain(ctx.tamboPlan_({module,action:'validar',lecturas:[item]},[],defaults));
+  assert.equal(p.additions.length,1);assert.equal(p.additions[0][0],"'"+item.id);assert.equal(p.writes.length,0);
+  if(module!=='inseminacion')assert.equal(p.additions[0][12],'');
+  const q=plain(ctx.tamboPlan_({module,action:'validar',lecturas:[{...item,id:"'"+item.id}]},[row(item.id)],defaults));
+  assert.equal(q.additions.length,0);assert.equal(q.writes.length,0);assert.equal(q.results[0].status,'confirmed');
+  const z=plain(ctx.tamboPlan_({module,action:'validar',lecturas:[item]},[row("'"+item.id)],defaults));
+  assert.equal(z.additions.length,0);assert.equal(z.results[0].status,'confirmed');
+ });
+}
+test('Carga Manga no ofrece accion Validar',()=>assert.throws(()=>ctx.tamboPlan_({module:'manga',action:'validar',lecturas:[item]},[],defaults)));
