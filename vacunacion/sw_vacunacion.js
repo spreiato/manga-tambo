@@ -1,71 +1,31 @@
-const CACHE_NAME = 'vacunacion-v2';
-const BASE_PATH = self.location.pathname.substring(0, self.location.pathname.lastIndexOf('/') + 1);
-
-const ASSETS = [
-  BASE_PATH,
-  BASE_PATH + 'index_vacunacion.html',
-  BASE_PATH + 'manifest_vacunacion.json'
-];
-
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      // Usamos addAll de forma segura o cacheamos individualmente 
-      // para que si falla uno por falta de red, no tire abajo todo el proceso.
-      return Promise.all(
-        ASSETS.map(url => {
-          return cache.add(url).catch(err => {
-            console.log('No se pudo cachear en el arranque (modo offline inicial):', url);
-          });
-        })
-      );
-    })
-  );
+/* Cada módulo conserva exclusivamente su propia caché; nunca toca bases locales. */
+const PREFIX = "mt-safe-vacunacion-";
+const CACHE = PREFIX + '20261024-1';
+const LEGACY = "vacunacion-";
+const ASSETS = ["./index_vacunacion.html", "./manifest_vacunacion.json", "../tambo.js?v=20261024.1", "../menu-flotante.js"];
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) return caches.delete(key);
-        })
-      );
-    }).then(() => self.clients.claim())
-  );
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE && (key.startsWith(PREFIX) || key.startsWith(LEGACY))).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Devuelve lo que está en caché y actualiza en segundo plano si hay red
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse);
-            });
-          }
-        }).catch(() => {});
-        return cachedResponse;
+self.addEventListener('fetch', event => {
+  if(event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(event.request);
+    if(event.request.mode !== 'navigate' && cached) return cached;
+    try {
+      const response = await fetch(event.request);
+      if(response.ok) await cache.put(event.request, response.clone());
+      return response;
+    } catch(error) {
+      if(cached) return cached;
+      if(event.request.mode === 'navigate') {
+        const home = await cache.match(ASSETS[0]);
+        if(home) return home;
       }
-      
-      // Si no está en caché, intenta buscarlo en la red
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        }
-        return networkResponse;
-      }).catch(() => {
-        // Red de seguridad final para modo offline absoluto: devuelve el index principal desde caché
-        return caches.match(BASE_PATH + 'index_vacunacion.html');
-      });
-    })
-  );
+      throw error;
+    }
+  })());
 });
