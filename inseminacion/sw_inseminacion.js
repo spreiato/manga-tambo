@@ -1,8 +1,8 @@
 /* Cada módulo conserva exclusivamente su propia caché; nunca toca bases locales. */
 const PREFIX = "mt-safe-inseminacion-";
-const CACHE = PREFIX + '20261024-3';
+const CACHE = PREFIX + '20261027-1';
 const LEGACY = "inseminacion-";
-const ASSETS = ["./index_inseminacion.html", "./manifest_inseminacion.json", "../tambo.js?v=20261024.3", "../menu-flotante.js?v=20261024.3"];
+const ASSETS = ["./index_inseminacion.html", "./manifest_inseminacion.json", "../tambo.js?v=20261024.3", "../menu-flotante.js?v=20261027.1"];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
