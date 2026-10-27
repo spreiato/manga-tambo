@@ -1,92 +1,31 @@
-document.addEventListener("DOMContentLoaded", function() {
-  // Creamos el contenedor principal
-  const container = document.createElement('div');
-  container.id = 'menuFlotanteContainer';
-  container.innerHTML = `
-    <button id="btnMenuFlotante" onclick="toggleMenuApps()">📂 Apps</button>
-    <div id="panelMenuApps">
-      <div class="menu-header">
-        <span>Otras Herramientas</span>
-        <button onclick="toggleMenuApps()" style="background:none;border:none;color:white;font-size:14px;cursor:pointer;">✕</button>
-      </div>
-      <a href="../index.html">🐄 Control de Mangas (Principal)</a>
-      <a href="../vacunacion/index_vacunacion.html">💉 Vacunación (Col. N)</a>
-      <a href="../inseminacion/index_inseminacion.html">🧬 Inseminación</a>
-      <a href="../traslado/traslado.html">🚛 Traslado</a>
-      <a href="../brucelosis/brucelosis.html">🔬 Brucelosis</a>
-      <a href="../ventas/ventas.html">💰 Ventas</a>
-    </div>
-  `;
-
-  // Creamos y aplicamos los estilos para que no tengas que agregarlos en cada HTML
-  const style = document.createElement('style');
-  style.innerHTML = `
-    #menuFlotanteContainer {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 9999;
-      font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-    }
-    #btnMenuFlotante {
-      background: #1F4E78;
-      color: white;
-      border: none;
-      border-radius: 30px;
-      padding: 12px 18px;
-      font-size: 15px;
-      font-weight: bold;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    #panelMenuApps {
-      position: absolute;
-      bottom: 55px;
-      right: 0;
-      background: white;
-      width: 250px;
-      border-radius: 10px;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.25);
-      overflow: hidden;
-      border: 1px solid #ddd;
-      text-align: left;
-      display: none;
-    }
-    .menu-header {
-      background: #1F4E78;
-      color: white;
-      padding: 10px 12px;
-      font-weight: bold;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 13px;
-    }
-    #panelMenuApps a {
-      display: block;
-      padding: 11px 14px;
-      color: #333;
-      text-decoration: none;
-      border-bottom: 1px solid #f0f0f0;
-      font-size: 13px;
-      font-weight: bold;
-    }
-    #panelMenuApps a:hover, #panelMenuApps a:active {
-      background: #e9ecef;
-      color: #1F4E78;
-    }
-  `;
-
-  document.head.appendChild(style);
-  document.body.appendChild(container);
-});
-
-function toggleMenuApps() {
-  const panel = document.getElementById('panelMenuApps');
-  if (panel) {
-    panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-  }
-}
+(function(){
+ 'use strict';
+ const script=document.currentScript,base=new URL('.',script.src);
+ const apps=[['manga','🐄','Carga Manga','index.html'],['control_veterinario','🩺','Control Veterinario','control_veterinario/index_veterinario.html'],['vacunacion','💉','Vacunación','vacunacion/index_vacunacion.html'],['inseminacion','🧬','Inseminación','inseminacion/index_inseminacion.html'],['traslado','🚛','Traslado','traslado/traslado.html'],['brucelosis','🔬','Brucelosis','brucelosis/brucelosis.html'],['ventas','💰','Ventas','ventas/ventas.html']];
+ function init(){
+  if(document.getElementById('appsDialog'))return;
+  const cfg=window.TAMBO_CONFIG||{},input=document.getElementById('caravana')||document.getElementById('caravanaInput');
+  const wrap=document.createElement('div');wrap.id='menuFlotanteContainer';
+  const header=document.createElement('header');header.className='field-nav';
+  const menu=document.createElement('button');menu.type='button';menu.className='field-apps';menu.textContent='☰ APLICACIONES';menu.setAttribute('aria-expanded','false');menu.setAttribute('aria-controls','appsDialog');
+  const keyboard=document.createElement('button');keyboard.type='button';keyboard.className='field-keyboard';keyboard.textContent='Carga manual';keyboard.setAttribute('aria-pressed','false');
+  const dialog=document.createElement('dialog');dialog.id='appsDialog';dialog.setAttribute('aria-label','Elegir aplicación');
+  const top=document.createElement('div');top.className='field-dialog-top';const title=document.createElement('h2');title.textContent='Elegí una aplicación';
+  const close=document.createElement('button');close.type='button';close.textContent='Cerrar ✕';close.className='field-close';top.append(title,close);
+  const grid=document.createElement('nav');grid.className='field-app-grid';grid.setAttribute('aria-label','Aplicaciones');
+  apps.forEach(([module,icon,label,path])=>{const a=document.createElement('a');a.href=new URL(path,base).href;a.textContent=icon+' '+label;if(module===cfg.module)a.setAttribute('aria-current','page');grid.append(a);});
+  dialog.append(top,grid);header.append(menu,keyboard);wrap.append(header,dialog);document.body.prepend(wrap);
+  const badge=document.getElementById('appVersion');if(badge){badge.style.cssText='position:static;font:700 11px system-ui;white-space:nowrap;color:#fff;';header.append(badge);}
+  const style=document.createElement('style');style.textContent=`body{padding-top:88px!important}#menuFlotanteContainer .field-nav{position:fixed;inset:0 0 auto;min-height:70px;padding:10px 12px;display:flex;align-items:center;gap:10px;background:#173e59;z-index:9999;box-shadow:0 2px 8px #0003}#menuFlotanteContainer button{font-family:system-ui,sans-serif;cursor:pointer;touch-action:manipulation}#menuFlotanteContainer .field-apps{min-height:50px;border:0;border-radius:9px;background:#fff;color:#173e59;font-size:15px;font-weight:850;padding:12px 14px;flex:1}#menuFlotanteContainer .field-keyboard{min-height:50px;border:1px solid #a7c2d4;border-radius:9px;background:#254f6b;color:#fff;font-size:14px;font-weight:750;padding:10px 12px}#menuFlotanteContainer .field-keyboard[aria-pressed="true"]{background:#fff1c0;color:#513700}#appsDialog{width:min(600px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:18px;border:0;border-radius:16px;background:#f5f8fa;color:#173e59;z-index:20000}#appsDialog::backdrop{background:#0c2138b3}.field-dialog-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.field-dialog-top h2{font-size:20px;margin:0;color:#173e59}.field-close{min-height:48px;padding:10px 14px;background:#e2eaf0;color:#173e59;border:0;border-radius:9px;font-size:15px;font-weight:750}.field-app-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field-app-grid a{display:flex;align-items:center;justify-content:center;text-align:center;min-height:88px;padding:14px 10px;border:2px solid #c4d5e0;border-radius:12px;background:white;color:#173e59;text-decoration:none;font:800 17px/1.3 system-ui}.field-app-grid a[aria-current="page"]{border-color:#174d73;background:#dcecf7}#menuFlotanteContainer button:focus-visible,.field-app-grid a:focus-visible{outline:4px solid #edb92e;outline-offset:3px}@media(max-width:360px){#menuFlotanteContainer .field-nav{gap:6px;padding:9px 8px}.field-app-grid a{font-size:15px}.field-apps{font-size:14px!important;padding:10px!important}.field-keyboard{font-size:12px!important}}`;
+  document.head.append(style);
+  let manual=false;
+  function setMode(value){manual=value;if(input)input.inputMode=manual?'text':'none';document.body.classList.toggle('manual-entry',manual);keyboard.textContent=manual?'Volver al bastón':'Carga manual';keyboard.setAttribute('aria-pressed',String(manual));}
+  setMode(false);
+  menu.addEventListener('click',()=>{if(input)input.blur();dialog.showModal();menu.setAttribute('aria-expanded','true');});
+  const shut=()=>{dialog.close();menu.setAttribute('aria-expanded','false');menu.focus();};close.addEventListener('click',shut);dialog.addEventListener('cancel',()=>{menu.setAttribute('aria-expanded','false');});
+  keyboard.addEventListener('click',()=>{setMode(!manual);if(input){input.blur();input.focus({preventScroll:true});}});
+  const renspa=document.getElementById('renspaInput');if(renspa){renspa.inputMode='text';renspa.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();setMode(false);renspa.blur();if(input)input.focus({preventScroll:true});}});}
+  window.TamboFieldNav={setMode,apps};
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
