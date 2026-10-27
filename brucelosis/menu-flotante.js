@@ -11,8 +11,6 @@ document.addEventListener("DOMContentLoaded", function() {
       </div>
       <a href="../index.html">🐄 Control de Mangas (Principal)</a>
       <a href="../vacunacion/index_vacunacion.html">💉 Vacunación (Col. N)</a>
-      <a href="../fc_llenas/index_fc_llenas.html">🐄 Llenas (Col. L)</a>
-      <a href="../fc_vacias/index_fc_vacias.html">🐮 Vacías</a>
       <a href="../inseminacion/index_inseminacion.html">🧬 Inseminación</a>
       <a href="../traslado/traslado.html">🚛 Traslado</a>
       <a href="../brucelosis/brucelosis.html">🔬 Brucelosis</a>
