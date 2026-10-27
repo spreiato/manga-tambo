@@ -72,13 +72,13 @@
       });
     } finally {backupDB.close();}
   }
-  async function post(items,action,endpoint) {
+  async function post(items,action,endpoint,module=cfg.module) {
     const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),30000);
     try {
-      const response=await fetch(endpoint || cfg.endpoint,{method:'POST',mode:'cors',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({protocol:1,module:cfg.module,action:action||'sincronizar',lecturas:items.map(item=>({id:String(cfg.local?item.caravana:item.id),token:token(item),fecha:item.fecha,renspa:item.renspa || ''}))}),signal:controller.signal});
+      const response=await fetch(endpoint || cfg.endpoint,{method:'POST',mode:'cors',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({protocol:1,module,action:action||'sincronizar',lecturas:items.map(item=>({id:String(cfg.local?item.caravana:item.id),token:token(item),fecha:item.fecha,renspa:item.renspa || ''}))}),signal:controller.signal});
       if(!response.ok || response.type==='opaque')throw new Error('El servidor no confirmó el envío.');
       const body=await response.json();
-      if(body.status!=='success'||body.protocol!==1||body.module!==cfg.module||!Array.isArray(body.results))throw new Error(body.message || 'Respuesta no confirmada del servidor.');
+      if(body.status!=='success'||body.protocol!==1||body.module!==module||!Array.isArray(body.results))throw new Error(body.message || 'Respuesta no confirmada del servidor.');
       const expected=new Map(items.map(item=>[token(item),String(cfg.local?item.caravana:item.id)])),seen=new Set();
       for(const r of body.results){if(!expected.has(r.token)||expected.get(r.token)!==r.id||seen.has(r.token)||!['confirmed','not_found','error'].includes(r.status))throw new Error('Confirmación inválida; se conservan los pendientes.');seen.add(r.token);}
       if(seen.size!==expected.size)throw new Error('Confirmación incompleta; se conservan los pendientes.');
@@ -86,7 +86,7 @@
     } finally {clearTimeout(timer);}
   }
   window.TamboCore={sent,token,mergeLocal,storageAdapter,backup,post,openDB,transaction};
-  if(window.TAMBO_TEST) return;
+  if(window.TAMBO_TEST || cfg.customUI) return;
   const input=$('caravana') || $('caravanaInput');
   let adapter, ready=false, running=null, reading=Promise.resolve(), installPrompt=null, resync=false;
   let status=$('status');
