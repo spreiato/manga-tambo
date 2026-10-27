@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#174d73">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest_veterinario.json">
+<title>Control Veterinario</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:16px 14px 28px;background:#edf2f6;color:#162d40;font:16px system-ui,-apple-system,sans-serif}.card{max-width:640px;margin:0 auto 16px;padding:20px;background:white;border-radius:16px;box-shadow:0 3px 14px #18354b14}h1{font-size:24px;margin:0 0 8px}h2{font-size:19px;margin:0 0 14px}.subtitle{color:#526475;line-height:1.5;margin:0 0 18px}label{display:block;font-weight:750;margin-bottom:8px}input{width:100%;min-height:64px;border:3px solid #7b94a7;border-radius:10px;padding:12px;font-size:23px;text-align:center;color:#173e59;background:#f6fafc}.reading{margin:16px 0;padding:16px 10px;background:#e8f1f7;border:2px solid #c2d9e9;border-radius:12px}#paso{font-size:13px;font-weight:800;letter-spacing:.04em}#caravanaActual{display:block;font-size:clamp(23px,6vw,35px);margin-top:8px;overflow-wrap:anywhere}.choices{display:grid;grid-template-columns:1fr 1fr;gap:16px}.choice{min-height:116px;font-size:29px;font-weight:900;border:4px solid transparent;border-radius:14px;color:white;cursor:pointer;touch-action:manipulation}.choice small{display:block;font-size:13px;font-weight:600;margin-top:6px}.choice.llena{background:#1669ac}.choice.vacia{background:#bb2534}.choice[aria-pressed="true"]{border-color:#142c3b;box-shadow:0 0 0 3px #f2c94c}.choice[aria-pressed="true"]:before{content:'✓ ';font-size:27px}.choice:disabled{opacity:.44;cursor:default}.choice[aria-pressed="true"]:disabled{opacity:1}.message{padding:14px;background:#e5f0f6;border-radius:10px;line-height:1.5;min-height:70px;margin:16px 0;color:#24465c;font-weight:650}.message.error{background:#fff1dd;color:#87400d}.secondary{min-height:52px;border:1px solid #b6c5d0;border-radius:9px;background:#edf2f7;color:#29475c;padding:10px 15px;font-size:15px;font-weight:750;cursor:pointer}button:focus-visible,a:focus-visible{outline:4px solid #edb92e;outline-offset:3px}.secondary:disabled{opacity:.45}.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sync{background:#24643a;color:white;border:0}.validate{background:#174d73;color:white;border:0}.summary{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;padding:12px 0;font-size:15px}.pending{color:#995209}.sent{color:#28733e}ul{padding:0;margin:0;list-style:none;max-height:350px;overflow:auto}li{padding:13px 0;border-top:1px solid #dce4eb;display:flex;justify-content:space-between;gap:12px;align-items:center}li strong{display:block;font-size:18px;overflow-wrap:anywhere}li small{display:block;margin-top:5px;color:#526475}li span{font-size:13px;max-width:45%;overflow-wrap:anywhere}.help{font-size:13px;color:#526475;line-height:1.5}#tomarLectura{display:none;margin-top:10px;width:100%}body.manual-entry #tomarLectura{display:block}#cancelarLectura{margin-top:14px;width:100%;background:white}.tools{display:flex;flex-wrap:wrap;gap:12px}.tools button{flex:1}.badge{font-size:12px;font-weight:800}#btnInstall[hidden]{display:none}
+</style>
+</head>
+<body>
+<span id="appVersion" class="badge">V 1.0</span>
+<main>
+<section class="card">
+<h1>Control Veterinario</h1>
+<p class="subtitle">Leé la caravana. Después tocá LLENA o VACÍA para confirmar el control.</p>
+<label for="caravana">LECTURA DEL BASTÓN</label>
+<input id="caravana" type="text" inputmode="none" autocomplete="off" spellcheck="false" placeholder="Esperando lectura…" aria-describedby="status">
+<button class="secondary" id="tomarLectura" type="button">Tomar lectura manual</button>
+<div class="reading" aria-live="polite"><span id="paso">1 · LEÉ LA CARAVANA</span><strong id="caravanaActual">Esperando lectura</strong></div>
+<div class="choices" role="group" aria-label="Elegir resultado y confirmar el control">
+<button id="llena" class="choice llena" type="button" aria-pressed="false" disabled>LLENA<small>Tocar para confirmar</small></button>
+<button id="vacia" class="choice vacia" type="button" aria-pressed="false" disabled>VACÍA<small>Tocar para confirmar</small></button>
+</div>
+<button id="cancelarLectura" class="secondary" type="button" disabled>Cancelar lectura sin resultado</button>
+<div id="status" class="message" role="status" aria-live="polite">Preparando base local…</div>
+<div class="summary"><span>Pendientes: <strong id="pendientesCount">0</strong></span><strong id="netText">Comprobando red</strong></div>
+<div class="actions"><button class="secondary sync" id="btnSync" type="button">Sincronizar</button><button class="secondary validate" id="btnValidar" type="button">Validar</button></div>
+<p class="help">Si falta una caravana, el envío queda pendiente. Usá Validar para comprobarla o darla de alta; después Sincronizar.</p>
+</section>
+<section class="card"><h2>Controles registrados</h2><div class="summary"><span>Total: <strong id="totalLecturas">0</strong></span><span>LLENAS: <strong id="countLlenas">0</strong></span><span>VACÍAS: <strong id="countVacias">0</strong></span></div><ul id="lecturasList"></ul></section>
+<section class="card"><h2>Herramientas</h2><div class="tools"><button class="secondary" id="btnBackup" type="button">Respaldar lecturas</button><button class="secondary" id="btnClear" type="button">Vaciar Local</button></div><p class="help">El respaldo incluye los controles y la lectura sin resultado. Vaciar Local solo retira controles enviados y guarda una copia previa.</p><button class="secondary" id="btnInstall" type="button" hidden>Instalar aplicación</button></section>
+</main>
+<script>window.TAMBO_CONFIG = {"module":"control_veterinario","db":"ControlVeterinarioTamboDB_v1","store":"controles","local":false,"customUI":true,"worker":"./sw_veterinario.js","endpoint":"https://script.google.com/macros/s/AKfycbxow0pYT8hcOe1YiBdbrpzsGsCfARrE_Tdkr2rkb9d93tIygx34iMJVUdUD5Xnkviwa/exec"};</script>
+<script src="../tambo.js?v=20261027.2"></script>
+<script src="./veterinario.js?v=20261027.2"></script>
+<script src="../menu-flotante.js?v=20261027.2"></script>
+</body>
+</html>
