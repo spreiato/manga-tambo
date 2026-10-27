@@ -1,8 +1,8 @@
 /* Cada módulo conserva exclusivamente su propia caché; nunca toca bases locales. */
 const PREFIX = "mt-safe-manga-";
-const CACHE = PREFIX + '20261027-1';
+const CACHE = PREFIX + '20261027-2';
 const LEGACY = "manga-tambo-";
-const ASSETS = ["./index.html", "./manifest.json", "./tambo.js?v=20261024.3", "./"];
+const ASSETS = ["./index.html", "./manifest.json", "./menu-flotante.js?v=20261027.2", "./tambo.js?v=20261027.2", "./"];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
