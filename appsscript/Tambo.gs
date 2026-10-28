@@ -1,6 +1,6 @@
 /* Manga Tambo — protocolo confirmado v1. Mantiene Base_Rodeo y las columnas existentes. */
 function doGet(e) {
-  return tamboJson_({status:'success', protocol:1, release:'2026-10-24.3', service:'Manga Tambo'});
+  return tamboJson_({status:'success', protocol:1, release:'2026-10-27.3', service:'Manga Tambo'});
 }
 function doPost(e) {
   var lock = LockService.getScriptLock(), locked = false;
@@ -19,7 +19,7 @@ function doPost(e) {
     if (p.dryRun === true) return tamboJson_({status:'success', protocol:1, dryRun:true, module:plan.module, results:plan.results, writes:plan.writes.length, additions:plan.additions.length});
     plan.writes.forEach(function(w){
       var cell = sheet.getRange(w.row,w.column);
-      if (w.column === 6) cell.setNumberFormat('@').setValue(w.value);
+      if (w.column === 6) cell.setNumberFormat('@').setValue("'" + w.value);
       else cell.setValue(tamboDate_(w.value)).setNumberFormat('dd/MM/yyyy');
     });
     if (plan.additions.length) {
@@ -94,7 +94,7 @@ function tamboPlan_(p,rows,defaults) {
         var value=item.fecha;
         if (module==='traslado') {
           value=String(item.renspa||'').trim();
-          if (!/^[0-9/.-]{4,40}$/.test(value)) throw new Error('RENSPA invalido.');
+          if (!value) throw new Error('Ingrese un RENSPA destino o una referencia.');
         } else tamboDate_(value);
         result.writes.push({row:row,column:columns[module],value:value});
       }
