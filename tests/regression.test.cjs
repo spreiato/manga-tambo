@@ -73,3 +73,14 @@ for(const module of ['ventas','brucelosis','fc_vacias','fc_llenas','inseminacion
  });
 }
 test('Carga Manga no ofrece accion Validar',()=>assert.throws(()=>ctx.tamboPlan_({module:'manga',action:'validar',lecturas:[item]},[],defaults)));
+
+for(const renspa of ['Muerto','0108000221/07','Lote norte - revisión','A','00123','=SUM(1,2)']){
+ test('Traslado admite referencia libre como texto: '+renspa,()=>{
+  const p=plain(ctx.tamboPlan_({module:'traslado',lecturas:[{...item,renspa}]},[row(item.id)],defaults));
+  assert.equal(p.results[0].status,'confirmed');assert.equal(p.writes.length,1);assert.equal(p.writes[0].column,6);assert.equal(p.writes[0].value,renspa);
+  const h=backendHarness();assert.equal(h.run({module:'traslado',lecturas:[{...item,renspa}]}).results[0].status,'confirmed');
+  assert.equal(h.writes[0].value,"'"+renspa);
+ });
+}
+test('Traslado no confirma destino vacio',()=>{for(const renspa of ['', '   ']){const p=plain(ctx.tamboPlan_({module:'traslado',lecturas:[{...item,renspa}]},[row(item.id)],defaults));assert.equal(p.results[0].status,'error');assert.equal(p.writes.length,0);}});
+test('Traslado conserva captura con Enter y destino por lectura',()=>{const client=fs.readFileSync(path.join(root,'tambo.js'),'utf8');assert(client.includes("if(cfg.module==='traslado' && !renspa)"));assert(client.includes("if(cfg.module==='traslado')item.renspa=renspa"));assert(client.includes("e.key==='Enter'&&!e.repeat"));});

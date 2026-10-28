@@ -137,7 +137,7 @@
     if(!id)return;
     if(id.length>128 || !/^[a-zA-Z0-9 .\/_-]+$/.test(id)){message('Caravana inválida. Revise la lectura.',true);return;}
     const renspa=$('renspaInput')?$('renspaInput').value.trim():'';
-    if(cfg.module==='traslado' && !/^[0-9/.-]{4,40}$/.test(renspa)){message('Ingrese un RENSPA destino válido.',true);$('renspaInput').focus();return;}
+    if(cfg.module==='traslado' && !renspa){message('Ingrese un RENSPA destino o una referencia, por ejemplo Muerto.',true);$('renspaInput').focus();return;}
     const item=cfg.local?{id:Date.now(),caravana:id,fecha:dateToday(),hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),enviado:false,operationId:crypto.randomUUID()}: {id,fecha:dateToday(),synced:0};
     if(cfg.module==='traslado')item.renspa=renspa;
     input.value='';
