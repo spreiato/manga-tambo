@@ -22,7 +22,9 @@
   let adapter,draftDB,draft=null,ready=false,saving=false,running=null,resync=false;
   let scanQueue=Promise.resolve(),installPrompt=null;
   const message=(text,error=false)=>{ $('status').textContent=text;$('status').className=error?'message error':'message'; };
-  const focus=()=>{if(ready&&!saving&&!document.querySelector('#appsDialog[open]'))$('caravana').focus({preventScroll:true});};
+  const field=core.fieldSupport($('caravana')),retry=core.retryState();let retryTimer=null,retryGeneration=0;
+  const focus=()=>{if(ready&&!saving)field.focus();};
+  async function scheduleRetry(){const generation=++retryGeneration;clearTimeout(retryTimer);if(!ready||!navigator.onLine)return;const records=await adapter.all();if(generation!==retryGeneration)return;if(records.some(r=>!core.sent(r)))retryTimer=setTimeout(()=>sync(),Math.max(30000,retry.wait()));}
   function buttons(selected='') {
     for(const choice of Object.keys(STATES)){
       const b=$(choice);b.disabled=!ready||!draft||saving;b.setAttribute('aria-pressed',String(choice===selected));
@@ -54,6 +56,7 @@
     if(draft){message('Primero elija LLENA o VACÍA para '+draft+'. La nueva lectura no reemplazó esa caravana.',true);return;}
     if((await adapter.all()).some(r=>r.id===id)){message('Caravana ya registrada en este equipo: '+id+'. Revise el listado.',true);return;}
     await storeDraft(id);draft=id;$('caravanaActual').textContent=id;$('paso').textContent='2 · ELEGÍ EL RESULTADO';buttons();
+    field.waiting('Caravana leída: falta elegir LLENA o VACÍA. Todavía no se registró el control.');
     message('Caravana leída. Toque LLENA o VACÍA para confirmar. Todavía no se envió.');
     focus();
   }
@@ -65,9 +68,9 @@
       const added=await adapter.add(item);
       if(!added){message('Caravana ya registrada: '+id+'. No se agregó otro control.',true);return;}
       draft=null;buttons(choice);$('paso').textContent='1 · LEÉ LA SIGUIENTE CARAVANA';
+      field.saved(id);
       try{await storeDraft(null);}catch(e){message('Control guardado; no se pudo limpiar la lectura en espera. Se verificará al reabrir.',true);}
       await render();message('✓ '+id+' · '+(choice==='llena'?'LLENA':'VACÍA')+' guardada en este equipo.'+(navigator.onLine?' Confirmando envío…':' Pendiente hasta recuperar conexión.'));
-      if(navigator.vibrate)navigator.vibrate(70);
       if(navigator.onLine)sync();
     }catch(e){message('NO GUARDADO: '+id+'. '+e.message+'. La lectura sigue esperando confirmación.',true);}
     finally{saving=false;buttons(draft?'':choice);focus();}
@@ -81,7 +84,7 @@
     for(const module of Object.values(STATES)){
       const group=items.filter(r=>r.estado===module);
       for(let i=0;i<group.length;i+=50){
-        const batch=group.slice(i,i+50),results=await core.post(batch,validate?'validar':'sincronizar',undefined,module);
+        const batch=group.slice(i,i+50),results=await core.post(batch,validate?'validar':'sincronizar',undefined,module);retry.reset();
         if(!validate)await adapter.acknowledge(batch,results);
         confirmed+=results.filter(r=>r.status==='confirmed').length;failed+=results.filter(r=>r.status!=='confirmed').length;
         await render();
@@ -90,9 +93,10 @@
     message((validate?'Validación confirmada: ':'Envío confirmado: ')+confirmed+(failed?'. '+failed+' pendientes: revise el listado; use Validar si falta la caravana.':'.')+(draft?' Falta elegir resultado para '+draft+'.':''),failed>0);
   }
   function sync(manual=false,validate=false){
+    if(!retry.allowed(manual)){scheduleRetry().catch(()=>{});return Promise.resolve();}
     if(running){if(!validate)resync=true;else message('Espere a que finalice el envío para validar.');return running;}
     const execute=()=>syncWork(manual,validate);
-    running=(navigator.locks?navigator.locks.request('manga-tambo:'+cfg.module,{ifAvailable:true},lock=>lock?execute():undefined):execute()).catch(e=>message('Envío no confirmado: '+e.message+'. Los controles siguen pendientes.',true)).finally(()=>{running=null;render().catch(()=>{});if(resync){resync=false;sync();}});
+    running=(navigator.locks?navigator.locks.request('manga-tambo:'+cfg.module,{ifAvailable:true},lock=>lock?execute():undefined):execute()).catch(e=>{retry.fail();message('Envío no confirmado: '+e.message+'. Los controles siguen pendientes; se reintentará automáticamente.',true);}).finally(()=>{running=null;render().catch(()=>{});scheduleRetry().catch(()=>{});focus();if(resync){resync=false;sync();}});
     return running;
   }
   async function clearLocal(){
@@ -122,15 +126,14 @@
   $('btnInstall').addEventListener('click',async()=>{if(installPrompt){await installPrompt.prompt();installPrompt=null;$('btnInstall').hidden=true;}else alert('En el menú del navegador elegí Instalar aplicación o Agregar a pantalla principal.');});
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('btnInstall').hidden=false;});
   window.addEventListener('appinstalled',()=>{$('btnInstall').hidden=true;});
-  window.addEventListener('online',()=>{render().catch(()=>{});sync();});window.addEventListener('offline',()=>{render().catch(()=>{});message('Sin conexión: los controles se guardan en este equipo.');});
+  window.addEventListener('online',()=>{retry.reset();render().catch(()=>{});sync();});window.addEventListener('offline',()=>{clearTimeout(retryTimer);render().catch(()=>{});message('Sin conexión: los controles se guardan en este equipo.');});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&navigator.onLine)sync();});
-  setInterval(()=>{if(navigator.onLine)sync();},30000);
   async function init(){
     try{
       const db=await core.openDB(cfg.db,cfg.store,'id');adapter=core.storageAdapter(db);draftDB=await core.openDB('ControlVeterinarioBorrador_v1','borrador','id');
       const records=checkRecords(await adapter.all());await core.backup(records,'antes-de-actualizar');const saved=await loadDraft();
       if(saved){if(records.some(r=>r.id===saved.caravana))await storeDraft(null);else draft=normalizeId(saved.caravana);}
-      ready=true;await render();buttons();
+      ready=true;field.ready();await render();buttons();
       if(draft){$('caravanaActual').textContent=draft;$('paso').textContent='2 · ELEGÍ EL RESULTADO';message('Lectura recuperada. Elija LLENA o VACÍA para confirmar.');}else message('Listo para leer. Primero caravana; después LLENA o VACÍA.');
       focus();if(navigator.onLine)sync();
     }catch(e){message('Base local protegida: '+e.message+'. No se eliminaron datos.',true);}
