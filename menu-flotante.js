@@ -22,7 +22,7 @@
   function setMode(value){manual=value;if(input)input.inputMode=manual?'text':'none';document.body.classList.toggle('manual-entry',manual);keyboard.textContent=manual?'Volver al bastón':'Carga manual';keyboard.setAttribute('aria-pressed',String(manual));}
   setMode(false);
   menu.addEventListener('click',()=>{if(input)input.blur();dialog.showModal();menu.setAttribute('aria-expanded','true');});
-  const shut=()=>{dialog.close();menu.setAttribute('aria-expanded','false');menu.focus();};close.addEventListener('click',shut);dialog.addEventListener('cancel',()=>{menu.setAttribute('aria-expanded','false');});
+  const shut=()=>{dialog.close();menu.setAttribute('aria-expanded','false');if(!manual&&input)input.focus({preventScroll:true});else menu.focus();};close.addEventListener('click',shut);dialog.addEventListener('cancel',()=>{menu.setAttribute('aria-expanded','false');if(!manual&&input)input.focus({preventScroll:true});});
   keyboard.addEventListener('click',()=>{setMode(!manual);if(input){input.blur();input.focus({preventScroll:true});}});
   const renspa=document.getElementById('renspaInput');if(renspa){renspa.inputMode='text';renspa.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();setMode(false);renspa.blur();if(input)input.focus({preventScroll:true});}});}
   window.TamboFieldNav={setMode,apps};
