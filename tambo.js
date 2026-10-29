@@ -8,6 +8,43 @@
   const sent = item => cfg.local ? item.enviado === true : Number(item.synced) === 1;
   const token = item => JSON.stringify([cfg.module,item.id,item.caravana || '',item.fecha,item.hora || '',item.renspa || '',item.operationId || '']);
   const dateToday = () => { const d=new Date();return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; };
+  let fieldObserver=null;
+  function retryState(now=()=>Date.now()) {
+    let failures=0,next=0;
+    return {allowed:manual=>manual||now()>=next,wait:()=>Math.max(0,next-now()),reset:()=>{failures=0;next=0;},fail:()=>{failures++;next=now()+Math.min(300000,15000*Math.pow(2,Math.min(failures-1,5)));}};
+  }
+  function networkError(error) {
+    if(error && error.name==='AbortError')return 'El servidor tardó en responder. Se reintentará sin perder los pendientes.';
+    if(error && error.name==='TypeError')return 'No se pudo contactar al servidor. Puede haber señal sin acceso a Internet.';
+    return error && error.message || 'El servidor no confirmó la operación.';
+  }
+  async function probeServer(endpoint=cfg.endpoint) {
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+    try{const response=await fetch(endpoint,{method:'GET',mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal});if(!response.ok||response.type==='opaque')throw new Error('Servidor sin respuesta válida.');const body=await response.json();if(body.status!=='success'||body.protocol!==1)throw new Error('Servidor sin respuesta válida.');return true;}finally{clearTimeout(timer);}
+  }
+  function fieldSupport(input) {
+    const panel=document.createElement('section');panel.id='fieldStatus';panel.setAttribute('aria-label','Estado de lectura y conexión');panel.className='card';
+    panel.style.cssText='max-width:640px;box-sizing:border-box;margin:0 auto 16px;padding:12px 16px;text-align:left;background:#edf5fa;border:1px solid #bfd5e4;border-radius:10px;font:600 14px/1.5 system-ui;color:#173e59;';
+    const reading=document.createElement('div'),connection=document.createElement('div'),offline=document.createElement('div');reading.id='fieldReading';connection.id='fieldConnection';offline.id='fieldOffline';reading.setAttribute('role','status');reading.setAttribute('aria-live','polite');panel.append(reading,connection,offline);
+    const status=$('status');if(status)status.before(panel);else input.before(panel);
+    let timer=null,checking=null,lastProbe=0,localReady=false;
+    const setReading=text=>{reading.textContent=text;};
+    const server=(state,detail)=>{connection.textContent=state==='sending'?'Enviando al servidor…':state==='validating'?'Validando caravanas…':state==='ready'?'Servidor disponible':state==='offline'?'Sin conexión · se guarda en este equipo':detail||'Servidor sin confirmar · pendientes conservados';};
+    fieldObserver=server;setReading('Preparando base local…');server(navigator.onLine?'unknown':'offline','Comprobando conexión…');offline.textContent='Comprobando apertura sin conexión…';
+    const focus=()=>{const active=document.activeElement;if(!localReady||document.hidden||document.querySelector('dialog[open]')||input.value||active&&active!==input&&active.matches('input,textarea,select,[contenteditable="true"]'))return;input.focus({preventScroll:true});};
+    async function checkOffline(){try{const registration='serviceWorker' in navigator?await navigator.serviceWorker.getRegistration():null;const url=new URL(location.href);url.hash='';url.search='';let page=await caches.match(url.href,{ignoreSearch:true});if(!page&&url.pathname.endsWith('/'))page=await caches.match(new URL('index.html',url).href,{ignoreSearch:true});offline.textContent=localReady&&registration&&registration.active&&page?'Base local lista · apertura sin conexión preparada':'Base local '+(localReady?'lista':'en preparación')+' · abrí este módulo con conexión antes de salir';}catch(e){offline.textContent='Comprobá que este módulo abra sin conexión antes de salir';}}
+    async function probe(force=false){if(!navigator.onLine){server('offline');return false;}if(checking)return checking;if(!force&&Date.now()-lastProbe<30000)return;lastProbe=Date.now();checking=probeServer().then(()=>{server('ready');return true;}).catch(()=>{server('unknown','Hay señal, pero el servidor no responde. Pendientes conservados.');return false;}).finally(()=>{checking=null;});return checking;}
+    input.addEventListener('input',()=>{clearTimeout(timer);input.style.outline='';if(!input.value.trim())return;timer=setTimeout(()=>{if(input.value.trim()){setReading('Lectura sin finalizar: presioná Enter. Todavía no se registró.');input.style.outline='3px solid #d99a25';}},1200);});
+    input.addEventListener('keydown',event=>{if(event.key==='Enter'){clearTimeout(timer);input.style.outline='';}});
+    window.addEventListener('offline',()=>server('offline'));
+    window.addEventListener('online',()=>{probe(true);checkOffline();});
+    window.addEventListener('focus',()=>{focus();probe();});
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden){focus();probe();checkOffline();}});
+    document.addEventListener('pointerdown',event=>{if(event.target.closest('button,a,input,textarea,select,dialog,#menuFlotanteContainer'))return;focus();});
+    if('serviceWorker' in navigator){navigator.serviceWorker.addEventListener('controllerchange',checkOffline);navigator.serviceWorker.ready.then(checkOffline).catch(()=>{});}
+    setTimeout(checkOffline,1500);
+    return {focus,probe,checkOffline,ready:()=>{localReady=true;setReading('Lista para leer con el bastón');checkOffline();probe();},saved:id=>{clearTimeout(timer);input.style.outline='';setReading('Guardado en este equipo: '+id);if(navigator.vibrate)try{navigator.vibrate(60);}catch(e){}},waiting:text=>{clearTimeout(timer);input.style.outline='';setReading(text);}};
+  }
   function transaction(db,store,mode,action) {
     return new Promise((resolve,reject) => {
       const tx=db.transaction(store,mode); let value;
@@ -64,7 +101,7 @@
   }
   async function backup(items,reason) {
     const backupDB=await openDB('MangaTamboBackups_v1','snapshots','key');
-    const key=reason==='antes-de-actualizar' ? '2026-10-24.1:'+cfg.module : cfg.module+':'+Date.now()+':'+reason;
+    const key=reason==='antes-de-actualizar' ? '2026-10-28.1:'+cfg.module : cfg.module+':'+Date.now()+':'+reason;
     try {
       await transaction(backupDB,'snapshots','readwrite',(s)=>{
         const req=s.get(key);
@@ -75,6 +112,7 @@
   async function post(items,action,endpoint,module=cfg.module) {
     const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),30000);
     try {
+      if(fieldObserver)fieldObserver(action==='validar'?'validating':'sending');
       const response=await fetch(endpoint || cfg.endpoint,{method:'POST',mode:'cors',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({protocol:1,module,action:action||'sincronizar',lecturas:items.map(item=>({id:String(cfg.local?item.caravana:item.id),token:token(item),fecha:item.fecha,renspa:item.renspa || ''}))}),signal:controller.signal});
       if(!response.ok || response.type==='opaque')throw new Error('El servidor no confirmó el envío.');
       const body=await response.json();
@@ -82,10 +120,12 @@
       const expected=new Map(items.map(item=>[token(item),String(cfg.local?item.caravana:item.id)])),seen=new Set();
       for(const r of body.results){if(!expected.has(r.token)||expected.get(r.token)!==r.id||seen.has(r.token)||!['confirmed','not_found','error'].includes(r.status))throw new Error('Confirmación inválida; se conservan los pendientes.');seen.add(r.token);}
       if(seen.size!==expected.size)throw new Error('Confirmación incompleta; se conservan los pendientes.');
+      if(fieldObserver)fieldObserver('ready');
       return body.results;
+    } catch(error) {if(fieldObserver)fieldObserver(navigator.onLine?'unknown':'offline',networkError(error));throw new Error(networkError(error));
     } finally {clearTimeout(timer);}
   }
-  window.TamboCore={sent,token,mergeLocal,storageAdapter,backup,post,openDB,transaction};
+  window.TamboCore={sent,token,mergeLocal,storageAdapter,backup,post,openDB,transaction,retryState,networkError,probeServer,fieldSupport};
   if(window.TAMBO_TEST || cfg.customUI) return;
   const input=$('caravana') || $('caravanaInput');
   let adapter, ready=false, running=null, reading=Promise.resolve(), installPrompt=null, resync=false;
@@ -93,7 +133,9 @@
   if(!status){status=document.createElement('div');status.id='status';status.setAttribute('role','status');status.style.cssText='padding:10px;margin:10px 0;font-weight:bold;';$('syncPanel').after(status);}
   status.setAttribute('role','status');status.setAttribute('aria-live','polite');
   const message=(text,error=false)=>{status.textContent=text;status.className=error?'status-existe':'status-sync';};
-  const focus=()=>{if(ready && document.activeElement!==$('renspaInput'))input.focus();};
+  const field=fieldSupport(input),retry=retryState();let retryTimer=null,retryGeneration=0;
+  const focus=()=>field.focus();
+  async function scheduleRetry(){const generation=++retryGeneration;clearTimeout(retryTimer);if(!ready||!navigator.onLine)return;const items=await adapter.all();if(generation!==retryGeneration)return;if(items.some(i=>!sent(i)))retryTimer=setTimeout(()=>sync(),Math.max(30000,retry.wait()));}
   const render=async()=>{
     if(!adapter)return;
     const items=await adapter.all(),pending=items.filter(i=>!sent(i));
@@ -118,7 +160,7 @@
     let confirmed=0,failed=0;
     for(let i=0;i<items.length;i+=50){
       const batch=items.slice(i,i+50);message(validate?'Validando caravanas...':'Enviando '+batch.length+' lecturas...');
-      const results=await post(batch,validate?'validar':'sincronizar');
+      const results=await post(batch,validate?'validar':'sincronizar');retry.reset();
       // Validar comprueba existencia/altas. No cambia el estado de la sincronización de fechas.
       if(!validate)await adapter.acknowledge(batch,results);
       confirmed+=results.filter(r=>r.status==='confirmed').length;failed+=results.filter(r=>r.status!=='confirmed').length;await render();
@@ -126,9 +168,10 @@
     message((validate?'Validación confirmada: ':'Guardado confirmado: ')+confirmed+(failed?'. '+failed+' requieren revisión y conservan su estado pendiente.':'.'),failed>0);
   }
   function sync(manual=false,validate=false) {
+    if(!retry.allowed(manual)){scheduleRetry().catch(()=>{});return Promise.resolve();}
     if(running){if(!validate)resync=true;else message('Espere a que finalice el envío para validar.');return running;}
     const execute=()=>syncWork(manual,validate);
-    running=(navigator.locks ? navigator.locks.request('manga-tambo:'+cfg.module,{ifAvailable:true},lock=>lock?execute():undefined):execute()).catch(e=>message('No confirmado: '+e.message+' Las lecturas siguen guardadas.',true)).finally(()=>{running=null;render().catch(()=>{});if(resync){resync=false;sync();}});
+    running=(navigator.locks ? navigator.locks.request('manga-tambo:'+cfg.module,{ifAvailable:true},lock=>lock?execute():undefined):execute()).catch(e=>{retry.fail();message('No confirmado: '+e.message+' Las lecturas siguen guardadas; se reintentará automáticamente.',true);}).finally(()=>{running=null;render().catch(()=>{});scheduleRetry().catch(()=>{});focus();if(resync){resync=false;sync();}});
     return running;
   }
   function capture() {
@@ -141,7 +184,7 @@
     const item=cfg.local?{id:Date.now(),caravana:id,fecha:dateToday(),hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),enviado:false,operationId:crypto.randomUUID()}: {id,fecha:dateToday(),synced:0};
     if(cfg.module==='traslado')item.renspa=renspa;
     input.value='';
-    reading=reading.then(async()=>{const added=await adapter.add(item);message(added?'✓ Lectura guardada en el dispositivo: '+id:'⚠ Caravana ya registrada: '+id,!added);await render();if(navigator.onLine)sync();}).catch(e=>{if(!input.value)input.value=id;message('NO GUARDADO: '+id+'. '+e.message,true);});
+    reading=reading.then(async()=>{const added=await adapter.add(item);if(added)field.saved(id);message(added?'✓ Lectura guardada en el dispositivo: '+id:'⚠ Caravana ya registrada: '+id,!added);await render();if(navigator.onLine)sync();}).catch(e=>{if(!input.value)input.value=id;message('NO GUARDADO: '+id+'. '+e.message,true);});
     focus();
   }
   async function clearLocal() {
@@ -195,13 +238,14 @@
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;installButton.style.display='block';installHelp.style.display='none';});
   $('btnInstall').addEventListener('click',async()=>{if(!installPrompt)return;await installPrompt.prompt();const choice=await installPrompt.userChoice;installButton.style.display='none';installHelp.style.display='block';installPrompt=null;});
   window.addEventListener('appinstalled',()=>{installButton.style.display='none';installHelp.style.display='block';});
-  window.addEventListener('online',()=>{render().catch(()=>{});sync();});
-  window.addEventListener('offline',()=>{render().catch(()=>{});message('Sin señal. Las nuevas lecturas se guardan en este dispositivo.');});
+  window.addEventListener('online',()=>{retry.reset();render().catch(()=>{});sync();});
+  window.addEventListener('offline',()=>{clearTimeout(retryTimer);render().catch(()=>{});message('Sin señal. Las nuevas lecturas se guardan en este dispositivo.');});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync();});
   document.addEventListener('click',e=>{if(!e.target.closest('button,a,input,#menuFlotanteContainer'))focus();});
   async function init() {
     try {
       const db=cfg.local?null:await openDB(cfg.db,cfg.store,'id');adapter=storageAdapter(db);
-      const items=await adapter.all();await backup(items,'antes-de-actualizar');ready=true;await render();message('LISTO PARA LEER. Base local conservada y respaldada.');focus();
+      const items=await adapter.all();await backup(items,'antes-de-actualizar');ready=true;field.ready();await render();message('LISTO PARA LEER. Base local conservada y respaldada.');focus();
       if(navigator.onLine)sync();
     } catch(e) {message('Base local protegida: '+e.message+' No se eliminaron datos.',true);}
   }
