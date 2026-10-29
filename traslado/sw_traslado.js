@@ -1,8 +1,8 @@
 /* Cada módulo conserva exclusivamente su propia caché; nunca toca bases locales. */
 const PREFIX = "mt-safe-traslado-";
-const CACHE = PREFIX + '20261027-3';
+const CACHE = PREFIX + '20261028-1';
 const LEGACY = "traslado-tambo-";
-const ASSETS = ["./traslado.html", "./manifest_traslado.json", "../tambo.js?v=20261027.3", "../menu-flotante.js?v=20261027.2"];
+const ASSETS = ["./traslado.html", "./manifest_traslado.json", "../tambo.js?v=20261028.1", "../menu-flotante.js?v=20261028.1"];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
